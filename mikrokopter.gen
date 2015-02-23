@@ -1,0 +1,241 @@
+/*/
+ * Copyright (c) 2015 LAAS/CNRS
+ * All rights reserved.
+ *
+ * Redistribution and use  in source  and binary  forms,  with or without
+ * modification, are permitted provided that the following conditions are
+ * met:
+ *
+ *   1. Redistributions of  source  code must retain the  above copyright
+ *      notice and this list of conditions.
+ *   2. Redistributions in binary form must reproduce the above copyright
+ *      notice and  this list of  conditions in the  documentation and/or
+ *      other materials provided with the distribution.
+ *
+ *					Anthony Mallet on Fri Feb 13 2015
+ */
+#pragma require "openrobots-idl >= 1.1"
+
+#include "or/pose/pose_estimator.gen"
+#include "or/robot/rotorcraft.gen"
+
+component mikrokopter {
+  version	"1.0";
+  email		"openrobots@laas.fr";
+  lang		"c";
+  require	"genom3 >= 2.99.26";
+
+  provides	or_rotorcraft;
+  uses		or_pose_estimator;
+
+  const unsigned short max_rotors = 8;
+
+  exception e_sys { short code; string<128> what; };
+  exception e_baddev { string<128> dev; };
+  exception e_connection, e_range, e_hardware, e_input;
+
+  native conn_s;
+
+  struct rotor_s {
+    boolean emerg, spinning, starting;
+    double pwm;
+    double velocity, target;
+    double current;
+  };
+  typedef sequence<rotor_s, max_rotors> rotors_s;
+
+  port out	rotors_s rotors;
+  port out	or_pose_estimator::state imu;
+
+
+  /* --- internal state ---------------------------------------------------- */
+
+  ids {
+    /* serial connection */
+    conn_s conn;
+
+    /* data transmission rate */
+    struct sensor_rate_s {
+      double imu, motor, battery;
+    } sensor_rate;
+
+    /* battery data */
+    struct battery_s {
+      double alarm;
+      double level;
+    } battery;
+
+    /* attitude estimator */
+    struct attitude_s {
+      double gyro_tau;
+      double roll, pitch, yaw;
+    } attitude;
+
+    /* imu calibration */
+    struct imu_calibration_s {
+      double wx_off, wy_off, wz_off;
+    } imu_calibration;
+
+    /* disabled motors */
+    sequence<boolean, max_rotors> disabled_motors;
+
+    struct servo_s {
+      double vmin, vmax;
+    } servo;
+  };
+
+  attribute get_sensor_rate(out sensor_rate);
+  attribute set_sensor_rate(in sensor_rate) {
+    validate mk_set_sensor_rate(local in sensor_rate, in conn);
+  };
+
+  attribute get_battery(out battery);
+  attribute set_battery_alarm(in battery.alarm);
+
+  attribute get_attitude(out attitude);
+  attribute set_attitude_tau(in attitude.gyro_tau);
+
+  attribute get_imu_calibration(out imu_calibration);
+
+  attribute get_disabled_motors(out disabled_motors);
+
+  attribute set_vlimit(in servo.vmin, in servo.vmax);
+
+
+  /* --- tasks ------------------------------------------------------------- */
+
+  const unsigned short control_period_ms = 1;
+
+  task main {
+    period control_period_ms ms;
+
+    codel<start> mk_main_init(out sensor_rate, out battery,
+                              out attitude, out imu_calibration,
+                              out disabled_motors, in rotors, in imu)
+      yield main;
+    codel<main> mk_main_perm(in conn, in battery, out attitude, out rotors,
+                             out imu)
+      yield main;
+  };
+
+  task comm {
+    codel<start> mk_comm_start(out conn)
+      yield poll;
+
+    async codel<poll> mk_comm_poll(in conn)
+      yield poll, recv;
+    codel<recv> mk_comm_recv(inout conn, in imu_calibration, out imu,
+                             out rotors, out battery)
+      yield poll;
+
+    codel<stop> mk_comm_stop(inout conn)
+      yield ether;
+
+    throw e_sys;
+  };
+
+
+  /* --- hw connection ----------------------------------------------------- */
+
+  activity connect(
+    in string<64> serial[2] = {
+      "/dev/ttyUSB0" :"Main serial device",
+      "" :"Optional second serial device"
+    } :"Serial devices",
+    in unsigned long baud = 115200 :"Baud rate") {
+
+    doc		"Connect to the hardware";
+    task	comm;
+
+    codel<start> mk_connect_start(in serial, in baud, inout conn,
+                                  in sensor_rate)
+      yield ether;
+
+    throw e_sys, e_baddev;
+    interrupt servo;
+  };
+
+  activity disconnect() {
+    doc		"Disconnect from the hardware";
+    task	comm;
+
+    codel<start> mk_disconnect_start(inout conn)
+      yield ether;
+  };
+
+  activity monitor() {
+    doc		"Monitor connection status";
+    task	comm;
+
+    codel<start, sleep> mk_monitor_check(in conn) yield sleep, ether;
+  };
+
+  function disable_motor(in unsigned short motor) {
+    doc		"Disable checking a motor status when it is disconnected";
+    codel mk_disable_motor(in motor, out disabled_motors);
+  };
+
+  function enable_motor(in unsigned short motor) {
+    doc		"Disable checking a motor status when it is disconnected";
+    codel mk_enable_motor(in motor, out disabled_motors);
+  };
+
+
+  /* --- calibration ------------------------------------------------------- */
+
+  activity calibrate_imu(in double seconds) {
+    doc		"Calibrate imu";
+    task	main;
+
+    local ids::imu_calibration_s accum;
+    local unsigned long t;
+
+    codel<start> mk_calibrate_imu_start(out accum, out t)
+      yield main;
+    codel<main> mk_calibrate_imu(in seconds, out t, in imu, inout accum)
+      yield pause::main, stop;
+    codel<stop> mk_calibrate_imu_stop(in t, in accum, out imu_calibration)
+      yield ether;
+
+    throw e_connection;
+  };
+
+
+  /* --- flight ------------------------------------------------------------ */
+
+  activity start() {
+    doc		"Spin propellers at the lowest velocity";
+    task	main;
+
+    codel<start> mk_start_start(in conn)
+      yield monitor;
+    codel<monitor> mk_start_monitor(in rotors, in disabled_motors)
+      yield pause::monitor, ether;
+    codel<stop> mk_start_stop(in conn)
+      yield ether;
+  };
+
+  activity servo() {
+    doc		"Control the propellers according to the given wrench";
+    task	main;
+
+    codel<start> mk_servo_start(in conn, in cmd_wrench, in rotors,
+                                in disabled_motors)
+      yield step;
+
+    codel<step> mk_servo_step(in conn, in servo, in cmd_wrench, in rotors,
+                              in disabled_motors)
+      yield pause::step;
+
+    codel<stop> mk_servo_stop(in conn)
+      yield ether;
+
+    throw e_connection, e_hardware, e_input;
+  };
+
+  function stop() {
+    doc		"Stop all propellers";
+    interrupt servo, start;
+    codel mk_stop(in conn);
+  };
+};
