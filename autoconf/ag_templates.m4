@@ -51,13 +51,11 @@ AC_DEFUN([AG_OUTPUT_TEMPLATES],
         AC_MSG_NOTICE([configuring for $t])
 
         # run genom
-        if ! test -d "$tdir/."; then
-            AC_MSG_NOTICE([running $ag_genom $t -C $tdir $ag_input])
-            eval $ag_genom $t -C $tdir $ag_input
-            if test $? != 0; then
-                rm -rf "$tdir"
-                AC_MSG_ERROR([cannot generate template $t], 2)
-            fi
+        AC_MSG_NOTICE([running $ag_genom $t -C $tdir $ag_input])
+        eval $ag_genom $t -C $tdir $ag_input
+        if test $? != 0; then
+            rm -rf "$tdir"
+            AC_MSG_ERROR([cannot generate template $t], 2)
         fi
 
         # check for autoconf template (configure.ac)
