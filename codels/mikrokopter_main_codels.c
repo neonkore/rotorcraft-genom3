@@ -76,7 +76,7 @@ mk_main_init(mikrokopter_ids_sensor_rate_s *sensor_rate,
 /** Codel mk_main_perm of task main.
  *
  * Triggered by mikrokopter_main.
- * Yields to mikrokopter_main.
+ * Yields to mikrokopter_pause_main.
  */
 genom_event
 mk_main_perm(const mikrokopter_conn_s *conn,
@@ -133,7 +133,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
   /* publish */
   rotors->write(self);
   imu->write(self);
-  return mikrokopter_main;
+  return mikrokopter_pause_main;
 }
 
 

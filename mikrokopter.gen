@@ -115,7 +115,7 @@ component mikrokopter {
       yield main;
     codel<main> mk_main_perm(in conn, in battery, out attitude, out rotors,
                              out imu)
-      yield main;
+      yield pause::main;
   };
 
   task comm {
@@ -167,7 +167,7 @@ component mikrokopter {
     doc		"Monitor connection status";
     task	comm;
 
-    codel<start, sleep> mk_monitor_check(in conn) yield sleep, ether;
+    codel<start, sleep> mk_monitor_check(in conn) yield pause::sleep, ether;
   };
 
   function disable_motor(in unsigned short motor) {

@@ -323,7 +323,7 @@ mk_disconnect_start(mikrokopter_conn_s **conn, genom_context self)
 /** Codel mk_monitor_check of activity monitor.
  *
  * Triggered by mikrokopter_start, mikrokopter_sleep.
- * Yields to mikrokopter_sleep, mikrokopter_ether.
+ * Yields to mikrokopter_pause_sleep, mikrokopter_ether.
  * Throws mikrokopter_e_sys.
  */
 genom_event
@@ -332,7 +332,7 @@ mk_monitor_check(const mikrokopter_conn_s *conn, genom_context self)
   int i;
 
   for(i = 0; i < mk_channels(); i++)
-    if (conn->chan[i].fd >= 0) return mikrokopter_sleep;
+    if (conn->chan[i].fd >= 0) return mikrokopter_pause_sleep;
 
   return mikrokopter_ether;
 }
