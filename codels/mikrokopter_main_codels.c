@@ -105,9 +105,9 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     double cr, cp, cy, sr, sp, sy;
 
     aroll = atan2(-imu_data->acc._value.ay,
-                  hypot(imu_data->acc._value.ax, imu_data->acc._value.az));
-    apitch = atan2(imu_data->acc._value.ax,
-                   hypot(imu_data->acc._value.ay, imu_data->acc._value.az));
+                  -imu_data->acc._value.az);
+    apitch = atan2(imu_data->acc._value.ax * cos(aroll),
+                   -imu_data->acc._value.az);
 
     attitude->roll =
       a * (attitude->roll + imu_data->vel._value.wx * dt) + (1.-a) * aroll;
