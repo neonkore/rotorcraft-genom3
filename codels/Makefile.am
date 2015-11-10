@@ -21,6 +21,7 @@ libmikrokopter_codels_la_SOURCES+=	mikrokopter_codels.c
 libmikrokopter_codels_la_SOURCES+=	mikrokopter_main_codels.c
 libmikrokopter_codels_la_SOURCES+=	mikrokopter_comm_codels.c
 libmikrokopter_codels_la_SOURCES+=	tty.c
+libmikrokopter_codels_la_SOURCES+=	codels.h
 
 libmikrokopter_codels_la_CPPFLAGS=	$(requires_CFLAGS)
 libmikrokopter_codels_la_LDFLAGS=	$(requires_LIBS)
