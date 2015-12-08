@@ -210,7 +210,7 @@ genom_event
 mk_start_start(const mikrokopter_conn_s *conn, genom_context self)
 {
   mk_send_msg(&conn->chan[0], "g");
-  return mikrokopter_sleep;
+  return mikrokopter_monitor;
 }
 
 /** Codel mk_start_monitor of activity start.
@@ -226,7 +226,7 @@ mk_start_monitor(const mikrokopter_rotors *rotors,
   mikrokopter_rotors_s *rdata = rotors->data(self);
   int i;
 
-  if (rdata->_length == 0) return mikrokopter_sleep;
+  if (rdata->_length == 0) return mikrokopter_pause_monitor;
   for(i = 0; i < rdata->_length; i++) {
     if (i < disabled_motors->_length && disabled_motors->_buffer[i])
       continue;
