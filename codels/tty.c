@@ -41,6 +41,15 @@ mk_open_tty(const char *device, uint32_t speed)
   int fd;
 
   /* select baud rate */
+#ifndef B57600
+# define B57600 57600U
+#endif
+#ifndef B115200
+# define B115200 115200U
+#endif
+#ifndef B500000
+# define B500000 500000U
+#endif
   switch(speed) {
     case 57600:		baud = B57600; break;
     case 115200:	baud = B115200; break;
