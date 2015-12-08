@@ -31,7 +31,7 @@ component mikrokopter {
   const unsigned short max_rotors = 8;
 
   exception e_sys { short code; string<128> what; };
-  exception e_baddev { string<128> dev; };
+  exception e_baddev { string<256> dev; };
   exception e_connection, e_range, e_hardware, e_input;
 
   native conn_s;

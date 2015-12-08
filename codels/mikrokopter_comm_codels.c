@@ -20,6 +20,7 @@
 
 #include <err.h>
 #include <errno.h>
+#include <fnmatch.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -105,8 +106,9 @@ mk_comm_recv(mikrokopter_conn_s **conn,
       len = (*conn)->chan[i].len;
       switch(*msg++) {
         case 'I': /* IMU data */
-          if (len == 13) {
+          if (len == 14) {
             or_pose_estimator_state *idata = imu->data(self);
+            uint8_t seq __attribute__((unused)) = *msg++;
 
             idata->ts.sec = tv.tv_sec;
             idata->ts.nsec = tv.tv_usec * 1000;
@@ -145,8 +147,9 @@ mk_comm_recv(mikrokopter_conn_s **conn,
           break;
 
         case 'M': /* motor data */
-          if (len == 8) {
+          if (len == 9) {
             mikrokopter_rotors_s *rdata = rotors->data(self);
+            uint8_t seq __attribute__((unused)) = *msg++;
             uint8_t state = *msg++;
             uint8_t id = state & 0xf;
 
@@ -176,7 +179,9 @@ mk_comm_recv(mikrokopter_conn_s **conn,
           break;
 
         case 'B': /* battery data */
-          if (len == 3) {
+          if (len == 4) {
+            uint8_t seq  __attribute__((unused)) = *msg++;
+
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
             battery->level = u16/1000.;
@@ -230,7 +235,7 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
                  const mikrokopter_ids_sensor_rate_s *sensor_rate,
                  genom_context self)
 {
-  static const char magic[] = "?mkfl";
+  static const char magic[] = "[?]mkfl1.5";
 
   speed_t s;
   int i, c;
@@ -252,8 +257,8 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
 
     /* check endpoint */
     while (mk_recv_msg(&(*conn)->chan[i], true) == 1); /* flush buffer */
-    c = 0;
     do {
+      c = 0;
       do {
         if (mk_send_msg(&(*conn)->chan[i], "?")) /* ask for id */
           return mk_e_sys_error(serial[i], self);
@@ -262,18 +267,27 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
         if (s < 0 && errno != EINTR) return mk_e_sys_error(NULL, self);
         if (s > 0) break;
       } while(c++ < 3);
+      if (c > 3) {
+        errno = ETIMEDOUT;
+        return mk_e_sys_error(NULL, self);
+      }
 
       s = mk_recv_msg(&(*conn)->chan[i], true);
-    } while(s == 1 && (*conn)->chan[i].msg[0] != magic[0]);
+    } while(s == 1 && (*conn)->chan[i].msg[0] != '?');
 
-    if (s != 1 ||
-        strncmp((char *)(*conn)->chan[i].msg, magic, sizeof(magic)-1)) {
-      mikrokopter_e_baddev_detail d;
-      strncpy(d.dev, serial[i], sizeof(d.dev));
-
-      close((*conn)->chan[i].fd);
-      (*conn)->chan[i].fd = -1;
-      return mikrokopter_e_baddev(&d, self);
+    (*conn)->chan[i].msg[(*conn)->chan[i].len] = 0;
+    if (s != 1 || fnmatch(magic, (char *)(*conn)->chan[i].msg, 0)) {
+      if (s != 1) {
+        errno = ENOMSG;
+        return mk_e_sys_error(NULL, self);
+      } else {
+        mikrokopter_e_baddev_detail d;
+        snprintf(d.dev, sizeof(d.dev), "device is `%s' instead of `%s'",
+                 (*conn)->chan[i].msg, magic);
+        close((*conn)->chan[i].fd);
+        (*conn)->chan[i].fd = -1;
+        return mikrokopter_e_baddev(&d, self);
+      }
     }
 
     snprintf((*conn)->chan[i].path, sizeof((*conn)->chan[i].path),
