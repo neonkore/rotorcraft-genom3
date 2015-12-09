@@ -16,6 +16,8 @@
  */
 #include "acmikrokopter.h"
 
+#include <float.h>
+
 #include "mikrokopter_c_types.h"
 #include "codels.h"
 
@@ -28,29 +30,46 @@
  * Throws .
  */
 genom_event
-mk_set_sensor_rate(const mikrokopter_ids_sensor_rate_s *sensor_rate,
-                   const mikrokopter_conn_s *conn, genom_context self)
+mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
+                   const mikrokopter_conn_s *conn,
+                   mikrokopter_ids_sensor_time_s *sensor_time,
+                   genom_context self)
 {
   int mainc, auxc;
   uint32_t p;
+  int i;
 
-  if (!conn) return mikrokopter_e_connection(self);
-  if (sensor_rate->imu < 0. || sensor_rate->imu > 1000. ||
-      sensor_rate->motor < 0. || sensor_rate->motor > 1000. ||
-      sensor_rate->battery < 0. || sensor_rate->battery > 1000.)
+  if (rate->imu < 0. || rate->imu > 2000. ||
+      rate->motor < 0. || rate->motor > 2000. ||
+      rate->battery < 0. || rate->battery > 2000.)
     return mikrokopter_e_range(self);
 
+  if (sensor_time) {
+    sensor_time->imu.seq = 0;
+    sensor_time->imu.ts = 0.;
+    sensor_time->imu.offset = -DBL_MAX;
+    for(i = 0; i < mikrokopter_max_rotors; i++) {
+      sensor_time->motor[i].seq = 0;
+      sensor_time->motor[i].ts = 0.;
+      sensor_time->motor[i].offset = -DBL_MAX;
+    }
+    sensor_time->battery.seq = 0;
+    sensor_time->battery.ts = 0.;
+    sensor_time->battery.offset = -DBL_MAX;
+  }
+
   /* reconfigure existing connection */
+  if (!conn) return genom_ok;
   mainc = auxc = -1;
   if (conn->chan[0].fd >= 0) { mainc = 0; auxc = 0; }
   if (conn->chan[1].fd >= 0) auxc = 1;
   if (mainc < 0 && auxc < 0) return genom_ok;
 
-  p = sensor_rate->battery > 0. ? 1000000/sensor_rate->battery : 0;
+  p = rate->battery > 0. ? 1000000/rate->battery : 0;
   mk_send_msg(&conn->chan[auxc], "b%4", p);
-  p = sensor_rate->motor > 0. ? 1000000/sensor_rate->motor : 0;
+  p = rate->motor > 0. ? 1000000/rate->motor : 0;
   mk_send_msg(&conn->chan[auxc], "m%4", p);
-  p = sensor_rate->motor > 0. ? 1000000/sensor_rate->imu : 0;
+  p = rate->motor > 0. ? 1000000/rate->imu : 0;
   mk_send_msg(&conn->chan[mainc], "i%4", p);
 
   return genom_ok;

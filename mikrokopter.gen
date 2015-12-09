@@ -54,10 +54,17 @@ component mikrokopter {
     /* serial connection */
     conn_s conn;
 
-    /* data transmission rate */
-    struct sensor_rate_s {
-      double imu, motor, battery;
-    } sensor_rate;
+    /* data timestamps and transmission rate */
+    struct sensor_time_s {
+      struct ts_s {
+        octet seq;
+        double ts, offset;
+      } imu, motor[max_rotors], battery;
+
+      struct rate_s {
+        double imu, motor, battery;
+      } rate;
+    } sensor_time;
 
     /* battery data */
     struct battery_s {
@@ -84,9 +91,9 @@ component mikrokopter {
     } servo;
   };
 
-  attribute get_sensor_rate(out sensor_rate);
-  attribute set_sensor_rate(in sensor_rate) {
-    validate mk_set_sensor_rate(local in sensor_rate, in conn);
+  attribute get_sensor_rate(out sensor_time.rate);
+  attribute set_sensor_rate(in sensor_time.rate) {
+    validate mk_set_sensor_rate(local in rate, in conn, out sensor_time);
   };
 
   attribute get_battery(out battery);
@@ -109,9 +116,7 @@ component mikrokopter {
   task main {
     period control_period_ms ms;
 
-    codel<start> mk_main_init(out sensor_rate, out battery,
-                              out attitude, out imu_calibration,
-                              out disabled_motors, in rotors, in imu)
+    codel<start> mk_main_init(out ::ids, in rotors, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, out attitude, out rotors,
                              out imu)
@@ -124,8 +129,8 @@ component mikrokopter {
 
     async codel<poll> mk_comm_poll(in conn)
       yield poll, recv;
-    codel<recv> mk_comm_recv(inout conn, in imu_calibration, out imu,
-                             out rotors, out battery)
+    codel<recv> mk_comm_recv(inout conn, in imu_calibration, inout sensor_time,
+                             out imu, out rotors, out battery)
       yield poll;
 
     codel<stop> mk_comm_stop(inout conn)
@@ -148,7 +153,7 @@ component mikrokopter {
     task	comm;
 
     codel<start> mk_connect_start(in serial, in baud, inout conn,
-                                  in sensor_rate)
+                                  inout sensor_time)
       yield ether;
 
     throw e_sys, e_baddev;

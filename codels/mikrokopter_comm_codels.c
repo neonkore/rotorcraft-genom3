@@ -18,8 +18,10 @@
 
 #include <sys/time.h>
 
+#include <assert.h>
 #include <err.h>
 #include <errno.h>
+#include <float.h>
 #include <fnmatch.h>
 #include <math.h>
 #include <stdbool.h>
@@ -33,8 +35,11 @@
 #include "codels.h"
 
 
-/* --- Task comm -------------------------------------------------------- */
+static or_time_ts	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
+                                  mikrokopter_ids_sensor_time_s_ts_s *timings);
 
+
+/* --- Task comm -------------------------------------------------------- */
 
 /** Codel mk_comm_start of task comm.
  *
@@ -54,6 +59,7 @@ mk_comm_start(mikrokopter_conn_s **conn, genom_context self)
     (*conn)->chan[i].fd = -1;
     (*conn)->chan[i].r = (*conn)->chan[i].w = 0;
   }
+
   return mikrokopter_poll;
 }
 
@@ -89,6 +95,7 @@ mk_comm_poll(const mikrokopter_conn_s *conn, genom_context self)
 genom_event
 mk_comm_recv(mikrokopter_conn_s **conn,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
+             mikrokopter_ids_sensor_time_s *sensor_time,
              const mikrokopter_imu *imu,
              const mikrokopter_rotors *rotors,
              mikrokopter_ids_battery_s *battery, genom_context self)
@@ -97,21 +104,22 @@ mk_comm_recv(mikrokopter_conn_s **conn,
   uint8_t *msg, len;
   int16_t v16;
   uint16_t u16;
-  struct timeval tv;
 
   for(i = 0; i < mk_channels(); i++) {
     while(mk_recv_msg(&(*conn)->chan[i], false) == 1) {
-      gettimeofday(&tv, NULL);
       msg = (*conn)->chan[i].msg;
       len = (*conn)->chan[i].len;
+
       switch(*msg++) {
         case 'I': /* IMU data */
           if (len == 14) {
             or_pose_estimator_state *idata = imu->data(self);
-            uint8_t seq __attribute__((unused)) = *msg++;
+            struct timeval tv;
+            uint8_t seq = *msg++;
 
-            idata->ts.sec = tv.tv_sec;
-            idata->ts.nsec = tv.tv_usec * 1000;
+            gettimeofday(&tv, NULL);
+            idata->ts = mk_get_ts(
+              seq, tv, sensor_time->rate.imu, &sensor_time->imu);
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
@@ -213,9 +221,10 @@ mk_comm_stop(mikrokopter_conn_s **conn, genom_context self)
   if (!*conn) return mikrokopter_ether;
 
   mk_send_msg(&(*conn)->chan[0], "x");
-  mk_set_sensor_rate(&(struct mikrokopter_ids_sensor_rate_s){
+  mk_set_sensor_rate(
+    &(struct mikrokopter_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
-        }, *conn, self);
+        }, *conn, NULL, self);
 
   return mikrokopter_ether;
 }
@@ -232,7 +241,7 @@ mk_comm_stop(mikrokopter_conn_s **conn, genom_context self)
 genom_event
 mk_connect_start(const char serial[2][64], uint32_t baud,
                  mikrokopter_conn_s **conn,
-                 const mikrokopter_ids_sensor_rate_s *sensor_rate,
+                 mikrokopter_ids_sensor_time_s *sensor_time,
                  genom_context self)
 {
   static const char magic[] = "[?]mkfl1.5";
@@ -296,7 +305,7 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
   }
 
   /* configure data streaming */
-  mk_set_sensor_rate(sensor_rate, *conn, self);
+  mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self);
 
   return mikrokopter_ether;
 }
@@ -316,9 +325,10 @@ mk_disconnect_start(mikrokopter_conn_s **conn, genom_context self)
   int i;
 
   mk_send_msg(&(*conn)->chan[0], "x");
-  mk_set_sensor_rate(&(struct mikrokopter_ids_sensor_rate_s){
+  mk_set_sensor_rate(
+    &(struct mikrokopter_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
-        }, *conn, self);
+        }, *conn, NULL, self);
 
   for(i = 0; i < mk_channels(); i++) {
     if ((*conn)->chan[i].fd >= 0) {
@@ -349,4 +359,45 @@ mk_monitor_check(const mikrokopter_conn_s *conn, genom_context self)
     if (conn->chan[i].fd >= 0) return mikrokopter_pause_sleep;
 
   return mikrokopter_ether;
+}
+
+
+/* --- mk_get_ts ----------------------------------------------------------- */
+
+/** Implements Olson, Edwin. "A passive solution to the sensor synchronization
+ * problem." International conference on Intelligent Robots and Systems (IROS),
+ * 2010 IEEE/RSJ */
+static or_time_ts
+mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
+          mikrokopter_ids_sensor_time_s_ts_s *timings)
+{
+  or_time_ts atv;
+  double ts;
+  uint8_t ds;
+  assert(rate > 0.);
+
+  /* delta samples */
+  ds = seq - timings->seq;
+  if (ds > 16)
+    /* if too many samples were lost, we might have missed more than 255
+     * samples: reset the offset */
+    timings->offset = -DBL_MAX;
+  else
+    /* consider a 0.5% clock drift on the sender side */
+    timings->offset -= 0.005 * ds / rate;
+
+  /* update remote timestamp */
+  timings->ts += ds / rate;
+  timings->seq = seq;
+
+  /* update offset */
+  ts = rtv.tv_sec + 1e-6 * rtv.tv_usec;
+  if (timings->ts - ts > timings->offset)
+    timings->offset = timings->ts - ts;
+
+  /* local timestamp */
+  ts = timings->ts - timings->offset;
+  atv.sec = floor(ts);
+  atv.nsec = (ts - atv.sec) * 1e9;
+  return atv;
 }

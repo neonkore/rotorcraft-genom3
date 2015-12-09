@@ -17,6 +17,7 @@
 #include "acmikrokopter.h"
 
 #include <sys/time.h>
+#include <float.h>
 #include <math.h>
 
 #include "mikrokopter_c_types.h"
@@ -32,35 +33,34 @@
  * Yields to mikrokopter_main.
  */
 genom_event
-mk_main_init(mikrokopter_ids_sensor_rate_s *sensor_rate,
-             mikrokopter_ids_battery_s *battery,
-             mikrokopter_ids_attitude_s *attitude,
-             mikrokopter_ids_imu_calibration_s *imu_calibration,
-             sequence8_boolean *disabled_motors,
-             const mikrokopter_rotors *rotors,
+mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
              const mikrokopter_imu *imu, genom_context self)
 {
-  sensor_rate->imu = 1000;
-  sensor_rate->motor = 100;
-  sensor_rate->battery = 1;
+  genom_event e;
 
-  battery->alarm = 13.7;
-  battery->level = 0.;
+  ids->sensor_time.rate.imu = 1000;
+  ids->sensor_time.rate.motor = 100;
+  ids->sensor_time.rate.battery = 1;
+  e = mk_set_sensor_rate(
+    &ids->sensor_time.rate, NULL, &ids->sensor_time, self);
+  if (e) return e;
 
-  attitude->gyro_tau = 2;
-  attitude->roll = attitude->pitch = attitude->yaw = 0.;
+  ids->battery.alarm = 13.7;
+  ids->battery.level = 0.;
 
-  imu_calibration->wx_off = 0.;
-  imu_calibration->wy_off = 0.;
-  imu_calibration->wz_off = 0.;
+  ids->attitude.gyro_tau = 2.;
+  ids->attitude.roll = ids->attitude.pitch = ids->attitude.yaw = 0.;
 
-  disabled_motors->_length = 0;
+  ids->imu_calibration.wx_off = 0.;
+  ids->imu_calibration.wy_off = 0.;
+  ids->imu_calibration.wz_off = 0.;
+
+  ids->disabled_motors._length = 0;
 
   rotors->data(self)->_length = 0;
 
   or_pose_estimator_state *imu_data = imu->data(self);
-  imu_data->ts.sec = 0;
-  imu_data->ts.nsec = 0;
+  imu_data->ts = (or_time_ts){ 0, 0 };
   imu_data->intrinsic = true;
   imu_data->pos._present = false;
   imu_data->pos_cov._present = false;
