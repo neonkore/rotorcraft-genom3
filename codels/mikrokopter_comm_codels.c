@@ -244,7 +244,7 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
                  mikrokopter_ids_sensor_time_s *sensor_time,
                  genom_context self)
 {
-  static const char magic[] = "[?]mkfl1.5";
+  static const char magic[] = "[?]mkfl1.5*";
 
   speed_t s;
   int i, c;
