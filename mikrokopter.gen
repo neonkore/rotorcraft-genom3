@@ -1,5 +1,5 @@
 /*/
- * Copyright (c) 2015 LAAS/CNRS
+ * Copyright (c) 2015-2016 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -20,10 +20,11 @@
 #include "or/robot/rotorcraft.gen"
 
 component mikrokopter {
-  version	"1.0";
-  email		"openrobots@laas.fr";
-  lang		"c";
-  require	"genom3 >= 2.99.26";
+  version		"1.0";
+  email			"openrobots@laas.fr";
+  lang			"c";
+  require		"genom3 >= 2.99.26";
+  codels-require	"eigen3";
 
   provides	or_rotorcraft;
   uses		or_pose_estimator;
@@ -72,16 +73,12 @@ component mikrokopter {
       double level;
     } battery;
 
-    /* attitude estimator */
-    struct attitude_s {
-      double gyro_tau;
-      double roll, pitch, yaw;
-    } attitude;
-
     /* imu calibration */
     struct imu_calibration_s {
-      double wx_off, wy_off, wz_off;
+      double gscale[9], gbias[3], gstddev[3];
+      double ascale[9], abias[3], astddev[3];
     } imu_calibration;
+    boolean imu_calibration_updated;
 
     /* disabled motors */
     sequence<boolean, max_rotors> disabled_motors;
@@ -99,10 +96,11 @@ component mikrokopter {
   attribute get_battery(out battery);
   attribute set_battery_alarm(in battery.alarm);
 
-  attribute get_attitude(out attitude);
-  attribute set_attitude_tau(in attitude.gyro_tau);
-
   attribute get_imu_calibration(out imu_calibration);
+  attribute set_imu_calibration(in imu_calibration) {
+    validate mk_set_imu_calibration(out imu_calibration_updated);
+  };
+
 
   attribute get_disabled_motors(out disabled_motors);
 
@@ -118,8 +116,9 @@ component mikrokopter {
 
     codel<start> mk_main_init(out ::ids, in rotors, in imu)
       yield main;
-    codel<main> mk_main_perm(in conn, in battery, out attitude, out rotors,
-                             out imu)
+    codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
+                             inout imu_calibration_updated,
+                             out rotors, out imu)
       yield pause::main;
   };
 
@@ -188,21 +187,42 @@ component mikrokopter {
 
   /* --- calibration ------------------------------------------------------- */
 
-  activity calibrate_imu(in double seconds) {
+  activity calibrate_imu(in double tstill, in unsigned short nposes) {
     doc		"Calibrate imu";
     task	main;
 
-    local ids::imu_calibration_s accum;
-    local unsigned long t;
-
-    codel<start> mk_calibrate_imu_start(out accum, out t)
-      yield main;
-    codel<main> mk_calibrate_imu(in seconds, out t, in imu, inout accum)
-      yield pause::main, stop;
-    codel<stop> mk_calibrate_imu_stop(in t, in accum, out imu_calibration)
+    codel<start> mk_calibrate_imu_start(in tstill, in nposes)
+      yield collect;
+    codel<collect> mk_calibrate_imu_collect(in imu)
+      yield pause::collect, main;
+    codel<main> mk_calibrate_imu_main(out imu_calibration,
+                                      out imu_calibration_updated)
       yield ether;
 
-    throw e_connection;
+    throw e_sys, e_connection;
+
+    interrupt calibrate_imu, set_zero;
+  };
+
+  activity set_zero() {
+    doc		"Set imu attitude to zero";
+    task	main;
+
+    local double accum[3], gycum[3];
+    local unsigned long n;
+
+    codel<start> mk_set_zero_start(out accum, out gycum, out n)
+      yield collect;
+    codel<collect> mk_set_zero_collect(in imu, inout accum, inout gycum,
+                                       inout n)
+      yield pause::collect, main;
+    codel<main> mk_set_zero(inout accum, inout gycum,
+                            out imu_calibration, out imu_calibration_updated)
+      yield ether;
+
+    throw e_sys;
+
+    interrupt calibrate_imu, set_zero;
   };
 
 

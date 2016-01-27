@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 LAAS/CNRS
+ * Copyright (c) 2015-2016 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -17,6 +17,7 @@
 #include "acmikrokopter.h"
 
 #include <sys/time.h>
+#include <err.h>
 #include <float.h>
 #include <math.h>
 
@@ -48,12 +49,39 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
   ids->battery.alarm = 13.7;
   ids->battery.level = 0.;
 
-  ids->attitude.gyro_tau = 2.;
-  ids->attitude.roll = ids->attitude.pitch = ids->attitude.yaw = 0.;
+  ids->imu_calibration.gscale[0] = 1.;
+  ids->imu_calibration.gscale[1] = 0.;
+  ids->imu_calibration.gscale[2] = 0.;
+  ids->imu_calibration.gscale[3] = 0.;
+  ids->imu_calibration.gscale[4] = 1.;
+  ids->imu_calibration.gscale[5] = 0.;
+  ids->imu_calibration.gscale[6] = 0.;
+  ids->imu_calibration.gscale[7] = 0.;
+  ids->imu_calibration.gscale[8] = 1.;
+  ids->imu_calibration.gbias[0] = 0.;
+  ids->imu_calibration.gbias[1] = 0.;
+  ids->imu_calibration.gbias[2] = 0.;
+  ids->imu_calibration.gstddev[0] = 1e-2;
+  ids->imu_calibration.gstddev[1] = 1e-2;
+  ids->imu_calibration.gstddev[2] = 1e-2;
 
-  ids->imu_calibration.wx_off = 0.;
-  ids->imu_calibration.wy_off = 0.;
-  ids->imu_calibration.wz_off = 0.;
+  ids->imu_calibration.ascale[0] = 1.;
+  ids->imu_calibration.ascale[1] = 0.;
+  ids->imu_calibration.ascale[2] = 0.;
+  ids->imu_calibration.ascale[3] = 0.;
+  ids->imu_calibration.ascale[4] = 1.;
+  ids->imu_calibration.ascale[5] = 0.;
+  ids->imu_calibration.ascale[6] = 0.;
+  ids->imu_calibration.ascale[7] = 0.;
+  ids->imu_calibration.ascale[8] = 1.;
+  ids->imu_calibration.abias[0] = 0.;
+  ids->imu_calibration.abias[1] = 0.;
+  ids->imu_calibration.abias[2] = 0.;
+  ids->imu_calibration.astddev[0] = 5e-2;
+  ids->imu_calibration.astddev[1] = 5e-2;
+  ids->imu_calibration.astddev[2] = 5e-2;
+
+  ids->imu_calibration_updated = true;
 
   ids->disabled_motors._length = 0;
 
@@ -81,7 +109,8 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
 genom_event
 mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_battery_s *battery,
-             mikrokopter_ids_attitude_s *attitude,
+             const mikrokopter_ids_imu_calibration_s *imu_calibration,
+             bool *imu_calibration_updated,
              const mikrokopter_rotors *rotors,
              const mikrokopter_imu *imu, genom_context self)
 {
@@ -95,40 +124,50 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     }
   }
 
-  /* attitude estimation */
-  {
-    or_pose_estimator_state *imu_data = imu->data(self);
-    double dt = mikrokopter_control_period_ms / 1000.;
-    double a = attitude->gyro_tau/(attitude->gyro_tau + dt);
-    double aroll, apitch;
+  /* imu covariance data */
+  if (*imu_calibration_updated) {
+    or_pose_estimator_state *idata = imu->data(self);
 
-    double cr, cp, cy, sr, sp, sy;
+    idata->vel_cov._value.cov[0] = 0.;
+    idata->vel_cov._value.cov[1] = 0.;
+    idata->vel_cov._value.cov[2] = 0.;
+    idata->vel_cov._value.cov[3] = 0.;
+    idata->vel_cov._value.cov[4] = 0.;
+    idata->vel_cov._value.cov[5] = 0.;
+    idata->vel_cov._value.cov[6] = 0.;
+    idata->vel_cov._value.cov[7] = 0.;
+    idata->vel_cov._value.cov[8] = 0.;
+    idata->vel_cov._value.cov[9] =
+      imu_calibration->gstddev[0] * imu_calibration->gstddev[0];
+    idata->vel_cov._value.cov[10] = 0.;
+    idata->vel_cov._value.cov[11] = 0.;
+    idata->vel_cov._value.cov[12] = 0.;
+    idata->vel_cov._value.cov[13] = 0.;
+    idata->vel_cov._value.cov[14] =
+      imu_calibration->gstddev[1] * imu_calibration->gstddev[1];
+    idata->vel_cov._value.cov[15] = 0.;
+    idata->vel_cov._value.cov[16] = 0.;
+    idata->vel_cov._value.cov[17] = 0.;
+    idata->vel_cov._value.cov[18] = 0.;
+    idata->vel_cov._value.cov[19] = 0.;
+    idata->vel_cov._value.cov[20] =
+      imu_calibration->gstddev[2] * imu_calibration->gstddev[2];
+    idata->vel_cov._present = true;
 
-    aroll = atan2(imu_data->acc._value.ay,
-                  imu_data->acc._value.az);
-    apitch = atan2(-imu_data->acc._value.ax * cos(aroll),
-                   imu_data->acc._value.az);
+    idata->acc_cov._value.cov[0] =
+      imu_calibration->astddev[0] * imu_calibration->astddev[0];
+    idata->acc_cov._value.cov[1] = 0.;
+    idata->acc_cov._value.cov[2] =
+      imu_calibration->astddev[1] * imu_calibration->astddev[1];
+    idata->acc_cov._value.cov[3] = 0.;
+    idata->acc_cov._value.cov[4] = 0.;
+    idata->acc_cov._value.cov[5] =
+      imu_calibration->astddev[2] * imu_calibration->astddev[2];
+    idata->acc_cov._present = true;
 
-    attitude->roll =
-      a * (attitude->roll + imu_data->vel._value.wx * dt) + (1.-a) * aroll;
-    attitude->pitch =
-      a * (attitude->pitch + imu_data->vel._value.wy * dt) + (1.-a) * apitch;
-    attitude->yaw =
-      attitude->yaw + imu_data->vel._value.wz * dt;
-
-    cr = cos(attitude->roll/2);  sr = sin(attitude->roll/2);
-    cp = cos(attitude->pitch/2); sp = sin(attitude->pitch/2);
-    cy = cos(attitude->yaw/2);   sy = sin(attitude->yaw/2);
-
-    imu_data->pos._value.x = nan("");
-    imu_data->pos._value.y = nan("");
-    imu_data->pos._value.z = nan("");
-    imu_data->pos._value.qw = cr * cp * cy + sr * sp * sy;
-    imu_data->pos._value.qx = sr * cp * cy - cr * sp * sy;
-    imu_data->pos._value.qy = cr * sp * cy + sr * cp * sy;
-    imu_data->pos._value.qz = cr * cp * sy - sr * sp * cy;
-    imu_data->pos._present = true;
+    *imu_calibration_updated = false;
   }
+
 
   /* publish */
   rotors->write(self);
@@ -142,59 +181,178 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 /** Codel mk_calibrate_imu_start of activity calibrate_imu.
  *
  * Triggered by mikrokopter_start.
- * Yields to mikrokopter_main.
- * Throws mikrokopter_e_connection.
+ * Yields to mikrokopter_collect.
+ * Throws mikrokopter_e_sys, mikrokopter_e_connection.
  */
 genom_event
-mk_calibrate_imu_start(mikrokopter_ids_imu_calibration_s *accum,
-                       uint32_t *t, genom_context self)
+mk_calibrate_imu_start(double tstill, uint16_t nposes,
+                       genom_context self)
 {
-  accum->wx_off = accum->wy_off = accum->wz_off = 0.;
-  *t = 0;
+  uint32_t sps;
+  int s;
+
+  sps = 1000/mikrokopter_control_period_ms;
+  s = mk_calibration_init(tstill * sps, nposes, sps);
+  if (s) {
+    errno = s;
+    return mk_e_sys_error("calibration", self);
+  }
+
+  warnx("calibration started");
+  return mikrokopter_collect;
+}
+
+/** Codel mk_calibrate_imu_collect of activity calibrate_imu.
+ *
+ * Triggered by mikrokopter_collect.
+ * Yields to mikrokopter_pause_collect, mikrokopter_main.
+ * Throws mikrokopter_e_sys, mikrokopter_e_connection.
+ */
+genom_event
+mk_calibrate_imu_collect(const mikrokopter_imu *imu,
+                         genom_context self)
+{
+  int32_t still;
+  int s;
+
+  s = mk_calibration_collect(imu->data(self), &still);
+  switch(s) {
+    case 0: break;
+
+    case EAGAIN:
+      if (still == 0)
+        warnx("stay still");
+      else if (still > 0)
+        warnx("calibration acquired pose %d", still);
+      return mikrokopter_pause_collect;
+
+    default:
+      warnx("calibration aborted");
+      mk_calibration_fini(NULL, NULL, NULL, NULL);
+      errno = s;
+      return mk_e_sys_error("calibration", self);
+  }
+
+  warnx("calibration acquired all poses");
   return mikrokopter_main;
 }
 
-/** Codel mk_calibrate_imu of activity calibrate_imu.
+/** Codel mk_calibrate_imu_main of activity calibrate_imu.
  *
  * Triggered by mikrokopter_main.
- * Yields to mikrokopter_pause_main, mikrokopter_stop.
- * Throws mikrokopter_e_connection.
+ * Yields to mikrokopter_ether.
+ * Throws mikrokopter_e_sys, mikrokopter_e_connection.
  */
 genom_event
-mk_calibrate_imu(double seconds, uint32_t *t,
-                 const mikrokopter_imu *imu,
-                 mikrokopter_ids_imu_calibration_s *accum,
-                 genom_context self)
+mk_calibrate_imu_main(mikrokopter_ids_imu_calibration_s *imu_calibration,
+                      bool *imu_calibration_updated,
+                      genom_context self)
+{
+  double maxa[3], maxw[3];
+  int s;
+
+  s = mk_calibration_acc(imu_calibration->ascale, imu_calibration->abias);
+  if (s) {
+    mk_calibration_fini(NULL, NULL, NULL, NULL);
+    errno = s;
+    return mk_e_sys_error("calibration", self);
+  }
+
+  s = mk_calibration_gyr(imu_calibration->gscale, imu_calibration->gbias);
+  if (s) {
+    mk_calibration_fini(NULL, NULL, NULL, NULL);
+    errno = s;
+    return mk_e_sys_error("calibration", self);
+  }
+
+  mk_calibration_fini(imu_calibration->astddev, imu_calibration->gstddev,
+                      maxa, maxw);
+  warnx("calibration max acceleration: "
+        "x %.2fm/s², y %.2fm/s², z %.2fm/s²", maxa[0], maxa[1], maxa[2]);
+  warnx("calibration max angular velocity: "
+        "x %.2f⁰/s, y %.2f⁰/s, z %.2f⁰/s",
+        maxw[0] * 180./M_PI, maxw[1] * 180./M_PI, maxw[2] * 180./M_PI);
+
+  *imu_calibration_updated = true;
+  return mikrokopter_ether;
+}
+
+
+/* --- Activity set_zero ------------------------------------------------ */
+
+/** Codel mk_set_zero_start of activity set_zero.
+ *
+ * Triggered by mikrokopter_start.
+ * Yields to mikrokopter_collect.
+ * Throws mikrokopter_e_sys.
+ */
+genom_event
+mk_set_zero_start(double accum[3], double gycum[3], uint32_t *n,
+                  genom_context self)
+{
+  gycum[0] = gycum[1] = gycum[2] = 0.;
+  accum[0] = accum[1] = accum[2] = 0.;
+  *n = 0;
+  return mikrokopter_collect;
+}
+
+/** Codel mk_set_zero_collect of activity set_zero.
+ *
+ * Triggered by mikrokopter_collect.
+ * Yields to mikrokopter_pause_collect, mikrokopter_main.
+ * Throws mikrokopter_e_sys.
+ */
+genom_event
+mk_set_zero_collect(const mikrokopter_imu *imu, double accum[3],
+                    double gycum[3], uint32_t *n, genom_context self)
 {
   or_pose_estimator_state *imu_data = imu->data(self);
 
-  (*t)++;
-  if (*t * mikrokopter_control_period_ms / 1000. > seconds)
-    return mikrokopter_stop;
+  if (!imu_data->vel._present || !imu_data->acc._present) {
+    errno = EIO;
+    return mk_e_sys_error("set_zero", self);
+  }
 
-  accum->wx_off += imu_data->vel._value.wx;
-  accum->wy_off += imu_data->vel._value.wy;
-  accum->wz_off += imu_data->vel._value.wz;
+  gycum[0] = (*n * gycum[0] - imu_data->vel._value.wx) / (1 + *n);
+  gycum[1] = (*n * gycum[1] - imu_data->vel._value.wy) / (1 + *n);
+  gycum[2] = (*n * gycum[2] - imu_data->vel._value.wz) / (1 + *n);
 
-  return mikrokopter_pause_main;
+  accum[0] = (*n * accum[0] + imu_data->acc._value.ax) / (1 + *n);
+  accum[1] = (*n * accum[1] + imu_data->acc._value.ay) / (1 + *n);
+  accum[2] = (*n * accum[2] + imu_data->acc._value.az) / (1 + *n);
+
+  return ((*n)++ < 2000.) ? mikrokopter_pause_collect : mikrokopter_main;
 }
 
-/** Codel mk_calibrate_imu_stop of activity calibrate_imu.
+/** Codel mk_set_zero of activity set_zero.
  *
- * Triggered by mikrokopter_stop.
+ * Triggered by mikrokopter_main.
  * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_connection.
+ * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_calibrate_imu_stop(uint32_t t,
-                      const mikrokopter_ids_imu_calibration_s *accum,
-                      mikrokopter_ids_imu_calibration_s *imu_calibration,
-                      genom_context self)
+mk_set_zero(double accum[3], double gycum[3],
+            mikrokopter_ids_imu_calibration_s *imu_calibration,
+            bool *imu_calibration_updated, genom_context self)
 {
-  imu_calibration->wx_off -= accum->wx_off / t;
-  imu_calibration->wy_off -= accum->wy_off / t;
-  imu_calibration->wz_off -= accum->wz_off / t;
+  double roll, pitch;
+  double cr, cp, sr, sp;
+  double r[9];
 
+  roll = atan2(accum[1], accum[2]);
+  cr = cos(roll);  sr = sin(roll);
+  pitch = atan2(-accum[0] * cr, accum[2]);
+  cp = cos(pitch); sp = sin(pitch);
+
+  r[0] = cp;   r[1] = sr * sp;  r[2] = cr * sp;
+  r[3] = 0.;   r[4] = cr;       r[5] = -sr;
+  r[6] = -sp;  r[7] = cp * sr;  r[8] = cr * cp;
+
+  mk_calibration_bias(gycum, imu_calibration->gscale, imu_calibration->gbias);
+  mk_calibration_rotate(r, imu_calibration->gscale);
+  mk_calibration_rotate(r, imu_calibration->ascale);
+
+  *imu_calibration_updated = true;
   return mikrokopter_ether;
 }
 

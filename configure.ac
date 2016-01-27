@@ -1,6 +1,6 @@
 dnl Autoconf file for building mikrokopter codels library.
 dnl
-dnl Copyright (c) 2015 LAAS/CNRS
+dnl Copyright (c) 2015-2016 LAAS/CNRS
 dnl All rights reserved.
 dnl
 dnl Redistribution and use  in source  and binary  forms,  with or without
@@ -28,12 +28,14 @@ dnl Compilers
 dnl
 LT_INIT
 AC_PROG_CC
+AC_PROG_CXX
 
 
 dnl External packages
 PKG_CHECK_MODULES(requires, [
   openrobots-idl >= 1.1
   genom3 >= 2.99.26
+  eigen3
 ])
 
 AC_PATH_PROG(GENOM3, [genom3], AC_MSG_ERROR([genom3 tool not found], 2))

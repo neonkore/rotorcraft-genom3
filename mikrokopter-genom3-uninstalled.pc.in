@@ -7,5 +7,5 @@ includedir=${prefix}/codels
 Name: mikrokopter-genom3
 Description: mikrokopter interface and codels library
 Version: @PACKAGE_VERSION@
-Requires: openrobots-idl >= 1.1, genom3 >= 2.99.26
+Requires: openrobots-idl >= 1.1, genom3 >= 2.99.26, eigen3
 Libs: ${libdir}/libmikrokopter_codels.la

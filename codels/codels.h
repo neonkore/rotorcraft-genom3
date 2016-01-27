@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 LAAS/CNRS
+ * Copyright (c) 2015-2016 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -67,5 +67,24 @@ int	mk_open_tty(const char *device, speed_t baud);
 int	mk_wait_msg(const struct mk_channel_s *channels, int n);
 int	mk_recv_msg(struct mk_channel_s *chan, bool block);
 int	mk_send_msg(const struct mk_channel_s *chan, const char *fmt, ...);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+  int	mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps);
+  int	mk_calibration_collect(or_pose_estimator_state *imu_data,
+                               int32_t *still);
+  int	mk_calibration_acc(double ascale[9], double abias[3]);
+  int	mk_calibration_gyr(double gscale[9], double gbias[3]);
+  void	mk_calibration_fini(double stddeva[3], double stddevw[3],
+                            double *maxa, double *maxw);
+
+  void	mk_calibration_rotate(double r[9], double s[9]);
+  void	mk_calibration_bias(double b1[3], double s[9], double b[3]);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* H_MIKROKOPTER_CODELS */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 LAAS/CNRS
+ * Copyright (c) 2015-2016 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -72,6 +72,22 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
   p = rate->motor > 0. ? 1000000/rate->imu : 0;
   mk_send_msg(&conn->chan[mainc], "i%4", p);
 
+  return genom_ok;
+}
+
+
+/* --- Attribute set_imu_calibration ------------------------------------ */
+
+/** Validation codel mk_set_imu_calibration of attribute set_imu_calibration.
+ *
+ * Returns genom_ok.
+ * Throws .
+ */
+genom_event
+mk_set_imu_calibration(bool *imu_calibration_updated,
+                       genom_context self)
+{
+  *imu_calibration_updated = true;
   return genom_ok;
 }
 

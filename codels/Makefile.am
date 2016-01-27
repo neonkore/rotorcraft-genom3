@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015 LAAS/CNRS
+# Copyright (c) 2015-2016 LAAS/CNRS
 # All rights reserved.
 #
 # Redistribution and use  in source  and binary  forms,  with or without
@@ -21,6 +21,7 @@ libmikrokopter_codels_la_SOURCES+=	mikrokopter_codels.c
 libmikrokopter_codels_la_SOURCES+=	mikrokopter_main_codels.c
 libmikrokopter_codels_la_SOURCES+=	mikrokopter_comm_codels.c
 libmikrokopter_codels_la_SOURCES+=	tty.c
+libmikrokopter_codels_la_SOURCES+=	calibration.cc
 libmikrokopter_codels_la_SOURCES+=	codels.h
 
 libmikrokopter_codels_la_CPPFLAGS=	$(requires_CFLAGS)

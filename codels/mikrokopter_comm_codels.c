@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 LAAS/CNRS
+ * Copyright (c) 2015-2016 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -115,6 +115,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
           if (len == 14) {
             or_pose_estimator_state *idata = imu->data(self);
             struct timeval tv;
+            double v[3];
             uint8_t seq = *msg++;
 
             gettimeofday(&tv, NULL);
@@ -123,31 +124,56 @@ mk_comm_recv(mikrokopter_conn_s **conn,
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
-            idata->acc._value.ax = v16/1000.;
+            v[0] = v16/1000. + imu_calibration->abias[0];
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
-            idata->acc._value.ay = v16/1000.;
+            v[1] = v16/1000. + imu_calibration->abias[1];
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
-            idata->acc._value.az = v16/1000.;
+            v[2] = v16/1000. + imu_calibration->abias[2];
+
+            idata->acc._value.ax =
+              imu_calibration->ascale[0] * v[0] +
+              imu_calibration->ascale[1] * v[1] +
+              imu_calibration->ascale[2] * v[2];
+            idata->acc._value.ay =
+              imu_calibration->ascale[3] * v[0] +
+              imu_calibration->ascale[4] * v[1] +
+              imu_calibration->ascale[5] * v[2];
+            idata->acc._value.az =
+              imu_calibration->ascale[6] * v[0] +
+              imu_calibration->ascale[7] * v[1] +
+              imu_calibration->ascale[8] * v[2];
+
+            v16 = ((int16_t)(*msg++) << 8);
+            v16 |= ((uint16_t)(*msg++) << 0);
+            v[0] = v16/1000. + imu_calibration->gbias[0];
+
+            v16 = ((int16_t)(*msg++) << 8);
+            v16 |= ((uint16_t)(*msg++) << 0);
+            v[1] = v16/1000. + imu_calibration->gbias[1];
+
+            v16 = ((int16_t)(*msg++) << 8);
+            v16 |= ((uint16_t)(*msg++) << 0);
+            v[2] = v16/1000. + imu_calibration->gbias[2];
 
             idata->vel._value.vx = nan("");
             idata->vel._value.vy = nan("");
             idata->vel._value.vz = nan("");
-
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            idata->vel._value.wx = v16/1000. + imu_calibration->wx_off;
-
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            idata->vel._value.wy = v16/1000. + imu_calibration->wy_off;
-
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            idata->vel._value.wz = v16/1000. + imu_calibration->wz_off;
+            idata->vel._value.wx =
+              imu_calibration->gscale[0] * v[0] +
+              imu_calibration->gscale[1] * v[1] +
+              imu_calibration->gscale[2] * v[2];
+            idata->vel._value.wy =
+              imu_calibration->gscale[3] * v[0] +
+              imu_calibration->gscale[4] * v[1] +
+              imu_calibration->gscale[5] * v[2];
+            idata->vel._value.wz =
+              imu_calibration->gscale[6] * v[0] +
+              imu_calibration->gscale[7] * v[1] +
+              imu_calibration->gscale[8] * v[2];
 
             idata->vel._present = true;
             idata->acc._present = true;
