@@ -36,6 +36,7 @@ component mikrokopter {
   exception e_connection, e_range, e_hardware, e_input;
 
   native conn_s;
+  native log_s;
 
   struct rotor_s {
     boolean emerg, spinning, starting;
@@ -86,6 +87,9 @@ component mikrokopter {
     struct servo_s {
       double vmin, vmax;
     } servo;
+
+    /* logging */
+    log_s log;
   };
 
   attribute get_sensor_rate(out sensor_time.rate);
@@ -120,6 +124,9 @@ component mikrokopter {
                              inout imu_calibration_updated,
                              out rotors, out imu)
       yield pause::main;
+
+    codel<stop> mk_main_stop(inout log)
+      yield ether;
   };
 
   task comm {
@@ -128,7 +135,8 @@ component mikrokopter {
 
     async codel<poll> mk_comm_poll(in conn)
       yield poll, recv;
-    codel<recv> mk_comm_recv(inout conn, in imu_calibration, inout sensor_time,
+    codel<recv> mk_comm_recv(inout conn, in log, in imu_calibration,
+                             inout sensor_time,
                              out imu, out rotors, out battery)
       yield poll;
 
@@ -262,5 +270,22 @@ component mikrokopter {
     doc		"Stop all propellers";
     interrupt servo, start;
     codel mk_stop(in conn);
+  };
+
+
+  /* --- logging ----------------------------------------------------------- */
+
+  function log(in string<64> path = "/tmp/mikrokopter.log": "Log file name") {
+    doc		"Log IMU and commanded wrench";
+
+    codel mk_log_start(in path, inout log);
+
+    throw e_sys;
+  };
+
+  function log_stop() {
+    doc		"Stop logging";
+
+    codel mk_log_stop(out log);
   };
 };

@@ -19,10 +19,25 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <termios.h>
 
 #include "mikrokopter_c_types.h"
+
+struct mikrokopter_log_s {
+  FILE *logf;
+
+# define mikrokopter_logfmt	" %2.6f "
+# define mikrokopter_log_header                         \
+  "ts imu_wx imu_wy imu_wz  imu_ax imu_ay imu_az "      \
+  "cmd_ts cmd_fz cmd_tx cmd_ty cmd_tz"
+# define mikrokopter_log_imu                                            \
+  "%d.%09d"                                                             \
+  mikrokopter_logfmt mikrokopter_logfmt mikrokopter_logfmt              \
+  mikrokopter_logfmt mikrokopter_logfmt mikrokopter_logfmt              \
+  "? ? ? ? ?"
+};
 
 struct mk_channel_s {
   char path[1024];

@@ -172,7 +172,21 @@ mk_main_perm(const mikrokopter_conn_s *conn,
   /* publish */
   rotors->write(self);
   imu->write(self);
+
   return mikrokopter_pause_main;
+}
+
+
+/** Codel mk_main_stop of task main.
+ *
+ * Triggered by mikrokopter_stop.
+ * Yields to mikrokopter_ether.
+ */
+genom_event
+mk_main_stop(mikrokopter_log_s **log, genom_context self)
+{
+  mk_log_stop(log, self);
+  return mikrokopter_ether;
 }
 
 

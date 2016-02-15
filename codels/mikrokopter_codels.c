@@ -17,6 +17,9 @@
 #include "acmikrokopter.h"
 
 #include <float.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "mikrokopter_c_types.h"
 #include "codels.h"
@@ -141,5 +144,55 @@ mk_stop(const mikrokopter_conn_s *conn, genom_context self)
 {
   if (!conn) return mikrokopter_e_connection(self);
   mk_send_msg(&conn->chan[0], "x");
+  return genom_ok;
+}
+
+
+/* --- Function log ----------------------------------------------------- */
+
+/** Codel mk_log_start of function log.
+ *
+ * Returns genom_ok.
+ * Throws mikrokopter_e_sys.
+ */
+genom_event
+mk_log_start(const char path[64], mikrokopter_log_s **log,
+             genom_context self)
+{
+  FILE *f;
+
+  mk_log_stop(log, self);
+
+  f = fopen(path, "w");
+  if (!f) return mk_e_sys_error("log", self);
+  fprintf(f, mikrokopter_log_header "\n");
+
+  *log = malloc(sizeof(**log));
+  if (!*log) {
+    fclose(f);
+    unlink(path);
+    errno = ENOMEM;
+    return mk_e_sys_error("log", self);
+  }
+
+  (*log)->logf = f;
+  return genom_ok;
+}
+
+
+/* --- Function log_stop ------------------------------------------------ */
+
+/** Codel mk_log_stop of function log_stop.
+ *
+ * Returns genom_ok.
+ */
+genom_event
+mk_log_stop(mikrokopter_log_s **log, genom_context self)
+{
+  if (!*log) return genom_ok;
+
+  fclose((*log)->logf);
+  free(*log);
+  *log = NULL;
   return genom_ok;
 }

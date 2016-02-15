@@ -93,7 +93,7 @@ mk_comm_poll(const mikrokopter_conn_s *conn, genom_context self)
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_comm_recv(mikrokopter_conn_s **conn,
+mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              mikrokopter_ids_sensor_time_s *sensor_time,
              const mikrokopter_imu *imu,
@@ -177,6 +177,18 @@ mk_comm_recv(mikrokopter_conn_s **conn,
 
             idata->vel._present = true;
             idata->acc._present = true;
+
+            /* log */
+            if (log) {
+              fprintf(log->logf, mikrokopter_log_imu "\n",
+                      idata->ts.sec, idata->ts.nsec,
+                      idata->vel._value.wx,
+                      idata->vel._value.wy,
+                      idata->vel._value.wz,
+                      idata->acc._value.ax,
+                      idata->acc._value.ay,
+                      idata->acc._value.az);
+            }
           }
           break;
 
