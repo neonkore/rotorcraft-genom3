@@ -377,10 +377,31 @@ mk_set_zero(double accum[3], double gycum[3],
  *
  * Triggered by mikrokopter_start.
  * Yields to mikrokopter_monitor.
+ * Throws mikrokopter_e_connection, mikrokopter_e_started,
+ *        mikrokopter_e_rotor_failure,
+ *        mikrokopter_e_rotor_not_disabled.
  */
 genom_event
-mk_start_start(const mikrokopter_conn_s *conn, genom_context self)
+mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
+               const mikrokopter_rotors *rotors,
+               const sequence8_boolean *disabled_motors,
+               genom_context self)
 {
+  mikrokopter_rotors_s *rdata = rotors->data(self);
+  int i;
+
+  if (!conn) return mikrokopter_e_connection(self);
+  if (rdata->_length == 0) {
+    mikrokopter_e_rotor_failure_detail e = { .id = 0 };
+    return mikrokopter_e_rotor_failure(&e, self);
+  }
+  for(i = 0; i < rdata->_length; i++) {
+    if (i < disabled_motors->_length && disabled_motors->_buffer[i])
+      continue;
+    if (rdata->_buffer[i].spinning) return mikrokopter_e_started(self);
+  }
+
+  *state = 0;
   mk_send_msg(&conn->chan[0], "g");
   return mikrokopter_monitor;
 }
@@ -389,20 +410,44 @@ mk_start_start(const mikrokopter_conn_s *conn, genom_context self)
  *
  * Triggered by mikrokopter_monitor.
  * Yields to mikrokopter_pause_monitor, mikrokopter_ether.
+ * Throws mikrokopter_e_connection, mikrokopter_e_started,
+ *        mikrokopter_e_rotor_failure,
+ *        mikrokopter_e_rotor_not_disabled.
  */
 genom_event
-mk_start_monitor(const mikrokopter_rotors *rotors,
+mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
+                 const mikrokopter_rotors *rotors,
                  const sequence8_boolean *disabled_motors,
                  genom_context self)
 {
   mikrokopter_rotors_s *rdata = rotors->data(self);
+  mikrokopter_e_rotor_failure_detail e;
+  mikrokopter_e_rotor_not_disabled_detail d;
   int i;
 
-  if (rdata->_length == 0) return mikrokopter_pause_monitor;
   for(i = 0; i < rdata->_length; i++) {
-    if (i < disabled_motors->_length && disabled_motors->_buffer[i])
+    if (i < disabled_motors->_length && disabled_motors->_buffer[i]) {
+      if (rdata->_buffer[i].spinning) {
+        mk_send_msg(&conn->chan[0], "x");
+        d.id = 1 + i;
+        return mikrokopter_e_rotor_not_disabled(&d, self);
+      }
       continue;
-    if (!rdata->_buffer[i].spinning) return mikrokopter_pause_monitor;
+    }
+
+    if (rdata->_buffer[i].starting)
+      *state |= 1 << i;
+    else if (*state & (1 << i)) {
+      if (!rdata->_buffer[i].starting &&
+          !rdata->_buffer[i].spinning) {
+        mk_send_msg(&conn->chan[0], "x");
+        e.id = 1 + i;
+        return mikrokopter_e_rotor_failure(&e, self);
+      } else
+        continue;
+    }
+
+    return mikrokopter_pause_monitor;
   }
 
   return mikrokopter_ether;
@@ -412,6 +457,9 @@ mk_start_monitor(const mikrokopter_rotors *rotors,
  *
  * Triggered by mikrokopter_stop.
  * Yields to mikrokopter_ether.
+ * Throws mikrokopter_e_connection, mikrokopter_e_started,
+ *        mikrokopter_e_rotor_failure,
+ *        mikrokopter_e_rotor_not_disabled.
  */
 genom_event
 mk_start_stop(const mikrokopter_conn_s *conn, genom_context self)
@@ -427,7 +475,7 @@ mk_start_stop(const mikrokopter_conn_s *conn, genom_context self)
  *
  * Triggered by mikrokopter_start.
  * Yields to mikrokopter_step.
- * Throws mikrokopter_e_connection, mikrokopter_e_hardware,
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
  *        mikrokopter_e_input.
  */
 genom_event
@@ -438,16 +486,23 @@ mk_servo_start(const mikrokopter_conn_s *conn,
                genom_context self)
 {
   mikrokopter_rotors_s *rotor_data = rotors->data(self);
-  or_rotorcraft_ts_wrench *cmd_data = cmd_wrench->data(self);
+  or_rotorcraft_ts_wrench *cmd_data;
+  mikrokopter_e_rotor_failure_detail e;
   int i;
 
   if (!conn) return mikrokopter_e_connection(self);
-  if (!rotor_data) return mikrokopter_e_hardware(self);
+  if (!rotor_data) return mikrokopter_e_connection(self);
   for(i = 0; i < rotor_data->_length; i++) {
     if (i < disabled_motors->_length && disabled_motors->_buffer[i])
       continue;
-    if (!rotor_data->_buffer[i].spinning) return mikrokopter_e_hardware(self);
+    if (!rotor_data->_buffer[i].spinning) {
+      e.id = 1 + i;
+      return mikrokopter_e_rotor_failure(&e, self);
+    }
   }
+
+  if (cmd_wrench->read(self)) return mikrokopter_e_input(self);
+  cmd_data = cmd_wrench->data(self);
   if (!cmd_data) return mikrokopter_e_input(self);
 
   return mikrokopter_step;
@@ -457,7 +512,7 @@ mk_servo_start(const mikrokopter_conn_s *conn,
  *
  * Triggered by mikrokopter_step.
  * Yields to mikrokopter_pause_step.
- * Throws mikrokopter_e_connection, mikrokopter_e_hardware,
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
  *        mikrokopter_e_input.
  */
 genom_event
@@ -469,7 +524,8 @@ mk_servo_step(const mikrokopter_conn_s *conn,
               genom_context self)
 {
   mikrokopter_rotors_s *rotor_data = rotors->data(self);
-  or_rotorcraft_ts_wrench *cmd_data = cmd_wrench->data(self);
+  or_rotorcraft_ts_wrench *cmd_data;
+  mikrokopter_e_rotor_failure_detail e;
 
   or_rb3d_force force;
   or_rb3d_torque torque;
@@ -484,18 +540,20 @@ mk_servo_step(const mikrokopter_conn_s *conn,
   double kf = 6.5e-4;
 
   /* check rotors status */
+  e.id = 0;
   for(i = 0; i < rotor_data->_length; i++) {
     if (i < disabled_motors->_length && disabled_motors->_buffer[i])
       continue;
 
     if (!rotor_data->_buffer[i].spinning) {
-      mk_send_msg(&conn->chan[0], "x");
-      return mikrokopter_e_hardware(self);
+      e.id = 1 + i;
+      return mikrokopter_e_rotor_failure(&e, self);
     }
   }
 
   /* update input */
   cmd_wrench->read(self);
+  cmd_data = cmd_wrench->data(self);
   force.x = force.y = 0.;
   force.z = cmd_data->w.f.z;
   torque = cmd_data->w.t;
@@ -538,7 +596,7 @@ mk_servo_step(const mikrokopter_conn_s *conn,
  *
  * Triggered by mikrokopter_stop.
  * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_connection, mikrokopter_e_hardware,
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
  *        mikrokopter_e_input.
  */
 genom_event

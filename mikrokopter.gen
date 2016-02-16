@@ -33,7 +33,9 @@ component mikrokopter {
 
   exception e_sys { short code; string<128> what; };
   exception e_baddev { string<256> dev; };
-  exception e_connection, e_range, e_hardware, e_input;
+  exception e_rotor_failure { unsigned short id; };
+  exception e_rotor_not_disabled { unsigned short id; };
+  exception e_started, e_connection, e_range, e_input;
 
   native conn_s;
   native log_s;
@@ -240,12 +242,19 @@ component mikrokopter {
     doc		"Spin propellers at the lowest velocity";
     task	main;
 
-    codel<start> mk_start_start(in conn)
+    local unsigned short state;
+
+    codel<start> mk_start_start(in conn, out state, in rotors,
+                                in disabled_motors)
       yield monitor;
-    codel<monitor> mk_start_monitor(in rotors, in disabled_motors)
+    codel<monitor> mk_start_monitor(in conn, inout state, in rotors,
+                                    in disabled_motors)
       yield pause::monitor, ether;
     codel<stop> mk_start_stop(in conn)
       yield ether;
+
+    interrupt start;
+    throw e_connection, e_started, e_rotor_failure, e_rotor_not_disabled;
   };
 
   activity servo() {
@@ -263,7 +272,7 @@ component mikrokopter {
     codel<stop> mk_servo_stop(in conn)
       yield ether;
 
-    throw e_connection, e_hardware, e_input;
+    throw e_connection, e_rotor_failure, e_input;
   };
 
   function stop() {
