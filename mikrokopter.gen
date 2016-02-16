@@ -136,7 +136,10 @@ component mikrokopter {
       yield poll;
 
     async codel<poll> mk_comm_poll(in conn)
-      yield poll, recv;
+      yield nodata, recv;
+    codel<nodata> mk_comm_nodata(inout conn, inout sensor_time,
+                                 out imu, out rotors, out battery)
+      yield poll;
     codel<recv> mk_comm_recv(inout conn, in log, in imu_calibration,
                              inout sensor_time,
                              out imu, out rotors, out battery)

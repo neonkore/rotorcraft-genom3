@@ -67,7 +67,7 @@ mk_comm_start(mikrokopter_conn_s **conn, genom_context self)
 /** Codel mk_comm_poll of task comm.
  *
  * Triggered by mikrokopter_poll.
- * Yields to mikrokopter_poll, mikrokopter_recv.
+ * Yields to mikrokopter_nodata, mikrokopter_recv.
  * Throws mikrokopter_e_sys.
  */
 genom_event
@@ -78,11 +78,40 @@ mk_comm_poll(const mikrokopter_conn_s *conn, genom_context self)
   s = mk_wait_msg(conn->chan, mk_channels());
   if (s < 0) {
     if (errno != EINTR) return mk_e_sys_error(NULL, self);
-    return mikrokopter_poll;
+    return mikrokopter_nodata;
   }
-  else if (s == 0) return mikrokopter_poll;
+  else if (s == 0) return mikrokopter_nodata;
 
   return mikrokopter_recv;
+}
+
+
+/** Codel mk_comm_nodata of task comm.
+ *
+ * Triggered by mikrokopter_nodata.
+ * Yields to mikrokopter_poll.
+ * Throws mikrokopter_e_sys.
+ */
+genom_event
+mk_comm_nodata(mikrokopter_conn_s **conn,
+               mikrokopter_ids_sensor_time_s *sensor_time,
+               const mikrokopter_imu *imu,
+               const mikrokopter_rotors *rotors,
+               mikrokopter_ids_battery_s *battery, genom_context self)
+{
+  or_pose_estimator_state *idata = imu->data(self);
+  mikrokopter_rotors_s *rdata = rotors->data(self);
+
+  /* reset exported data in case of timeout */
+  idata->vel._present = false;
+  idata->acc._present = false;
+  rdata->_length = 0;
+  battery->level = 0.;
+
+  if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
+    mk_disconnect_start(conn, self);
+
+  return mikrokopter_poll;
 }
 
 
