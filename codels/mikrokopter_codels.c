@@ -16,6 +16,7 @@
  */
 #include "acmikrokopter.h"
 
+#include <sys/time.h>
 #include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -129,6 +130,27 @@ mk_enable_motor(uint16_t motor, sequence8_boolean *disabled_motors,
 
   if (motor > disabled_motors->_length) disabled_motors->_length = motor;
   disabled_motors->_buffer[motor-1] = false;
+  return genom_ok;
+}
+
+
+/* --- Function set_wrench ---------------------------------------------- */
+
+/** Codel mk_set_wrench of function set_wrench.
+ *
+ * Returns genom_ok.
+ */
+genom_event
+mk_set_wrench(const or_rb3d_wrench *wrench,
+              or_rotorcraft_ts_wrench *target, genom_context self)
+{
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
+  target->ts.sec = tv.tv_sec;
+  target->ts.nsec = tv.tv_usec * 1000;
+
+  target->w = *wrench;
   return genom_ok;
 }
 

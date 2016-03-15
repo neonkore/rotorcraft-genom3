@@ -83,11 +83,13 @@ component mikrokopter {
     } imu_calibration;
     boolean imu_calibration_updated;
 
-    /* disabled motors */
+    /* rotors state */
     sequence<boolean, max_rotors> disabled_motors;
 
+    /* servo parameters */
     struct servo_s {
       double vmin, vmax;
+      or_rotorcraft::ts_wrench wrench;
     } servo;
 
     /* logging */
@@ -264,18 +266,26 @@ component mikrokopter {
     doc		"Control the propellers according to the given wrench";
     task	main;
 
-    codel<start> mk_servo_start(in conn, in cmd_wrench, in rotors,
-                                in disabled_motors)
-      yield step;
+    codel<start> mk_servo_start(in conn, out servo.wrench, in cmd_wrench)
+      yield main;
 
-    codel<step> mk_servo_step(in conn, in servo, in cmd_wrench, in rotors,
-                              in disabled_motors)
-      yield pause::step;
+    codel<main> mk_servo_main(in conn, inout servo,
+                              in rotors, in disabled_motors)
+      yield pause::start;
 
-    codel<stop> mk_servo_stop(in conn)
+    codel<stop> mk_servo_stop(in conn, out servo,
+                              in rotors)
       yield ether;
 
     throw e_connection, e_rotor_failure, e_input;
+  };
+
+  function set_wrench(in or::rb3d::wrench wrench = {
+      .f =: "Force", .t =: "Torque"
+    }) {
+    doc		"Set the given wrench once";
+
+    codel mk_set_wrench(in wrench, out servo.wrench::target);
   };
 
   function stop() {
