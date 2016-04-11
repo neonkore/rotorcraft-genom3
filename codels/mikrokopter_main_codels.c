@@ -35,6 +35,7 @@
  */
 genom_event
 mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
+             const mikrokopter_propeller_measure *propeller_measure,
              const mikrokopter_imu *imu, genom_context self)
 {
   genom_event e;
@@ -89,6 +90,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
   ids->servo.vmax = 100.;
 
   rotors->data(self)->_length = 0;
+  propeller_measure->data(self)->w._length = 0;
 
   or_pose_estimator_state *imu_data = imu->data(self);
   imu_data->ts = (or_time_ts){ 0, 0 };
@@ -115,6 +117,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              bool *imu_calibration_updated,
              const mikrokopter_rotors *rotors,
+             const mikrokopter_propeller_measure *propeller_measure,
              const mikrokopter_imu *imu, genom_context self)
 {
   /* battery level */
@@ -174,6 +177,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* publish */
   rotors->write(self);
+  propeller_measure->write(self);
   imu->write(self);
 
   return mikrokopter_pause_main;
@@ -438,16 +442,14 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
       continue;
     }
 
-    if (rdata->_buffer[i].starting)
-      *state |= 1 << i;
-    else if (*state & (1 << i)) {
-      if (!rdata->_buffer[i].starting &&
-          !rdata->_buffer[i].spinning) {
-        mk_send_msg(&conn->chan[0], "x");
-        e.id = 1 + i;
-        return mikrokopter_e_rotor_failure(&e, self);
-      } else
-        continue;
+    if (rdata->_buffer[i].spinning) continue;
+    if (rdata->_buffer[i].starting) *state |= 1 << i;
+
+    if ((!rdata->_buffer[i].starting && (*state & (1 << i))) ||
+        rdata->_buffer[i].emerg) {
+      mk_send_msg(&conn->chan[0], "x");
+      e.id = 1 + i;
+      return mikrokopter_e_rotor_failure(&e, self);
     }
 
     return mikrokopter_pause_monitor;
@@ -483,19 +485,24 @@ mk_start_stop(const mikrokopter_conn_s *conn, genom_context self)
  */
 genom_event
 mk_servo_start(const mikrokopter_conn_s *conn,
-               or_rotorcraft_ts_wrench *wrench,
-               const mikrokopter_cmd_wrench *cmd_wrench,
+               or_rotorcraft_input *target,
+               const mikrokopter_propeller_input *propeller_input,
                genom_context self)
 {
-  or_rotorcraft_ts_wrench *cmd_data;
+  or_rotorcraft_input *input_data;
+  int i;
 
   /* update input if connected */
-  if (cmd_wrench->read(self)) return mikrokopter_main;
+  if (propeller_input->read(self)) return mikrokopter_main;
 
-  cmd_data = cmd_wrench->data(self);
-  if (!cmd_data) return mikrokopter_e_input(self);
+  input_data = propeller_input->data(self);
+  if (!input_data) return mikrokopter_e_input(self);
 
-  *wrench = *cmd_data;
+  target->ts = input_data->ts;
+  target->w._length = input_data->w._length;
+  for(i = 0; i < input_data->w._length; i++)
+    target->w._buffer[i] = input_data->w._buffer[i];
+
   return mikrokopter_main;
 }
 
@@ -508,25 +515,17 @@ mk_servo_start(const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
-              mikrokopter_ids_servo_s *servo,
-              const mikrokopter_rotors *rotors,
               const sequence8_boolean *disabled_motors,
-              genom_context self)
+              const mikrokopter_rotors *rotors,
+              mikrokopter_ids_servo_s *servo, genom_context self)
 {
   mikrokopter_rotors_s *rotor_data = rotors->data(self);
   mikrokopter_e_rotor_failure_detail e;
 
   struct timeval tv;
-  or_rb3d_torque torque;
-  double thrust, tlimit;
-  double f[4], v;
-  uint16_t p[4];
+  uint16_t p[or_rotorcraft_max_rotors];
+  double v;
   int i;
-
-  /* XXX make this configurable */
-  double d = 0.25;
-  double c = 0.0154;
-  double kf = 6.5e-4;
 
   if (!conn) return mikrokopter_e_connection(self);
 
@@ -544,43 +543,24 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   /* watchdog */
   gettimeofday(&tv, NULL);
   if (tv.tv_sec + 1e-6*tv.tv_usec >
-      0.5 + servo->wrench.ts.sec + 1e-9*servo->wrench.ts.nsec) {
+      0.5 + servo->target.ts.sec + 1e-9*servo->target.ts.nsec) {
     /* do something smart here, instead of the following */
-    servo->wrench.w.f.x = servo->wrench.w.f.y = servo->wrench.w.f.z = 0.;
-    servo->wrench.w.t.x = servo->wrench.w.t.y = servo->wrench.w.t.z = 0.;
+    for(i = 0; i < servo->target.w._length; i++)
+      servo->target.w._buffer[i] = 0.;
   }
 
-  /* total thrust */
-  thrust = (servo->wrench.w.f.z > 0.) ? servo->wrench.w.f.z : 0.;
+  /* rotational period */
+  for(i = 0; i < servo->target.w._length; i++) {
+    if (i < disabled_motors->_length && disabled_motors->_buffer[i])
+      v = 0.;
+    else
+      v = servo->target.w._buffer[i];
 
-  /* torque limitation */
-  tlimit = servo->vmax * servo->vmax * kf - thrust/4;
-  if (thrust/4 - servo->vmin * servo->vmin * kf < tlimit)
-    tlimit = thrust/4 - servo->vmin * servo->vmin * kf;
-  if (tlimit < 0.) tlimit = 0.;
-  tlimit = d * tlimit;
-
-  torque = servo->wrench.w.t;
-  if (fabs(torque.x) > tlimit) torque.x = copysign(tlimit, torque.x);
-  if (fabs(torque.y) > tlimit) torque.y = copysign(tlimit, torque.y);
-  if (fabs(torque.z) > 0.2) torque.z = copysign(0.2, torque.z);
-
-  /* forces */
-  f[0] = thrust/4 - torque.y/d/2. + torque.z/c/4;
-  f[1] = thrust/4 + torque.y/d/2. + torque.z/c/4;
-  f[2] = thrust/4 - torque.x/d/2. - torque.z/c/4;
-  f[3] = thrust/4 + torque.x/d/2. - torque.z/c/4;
-
-  /* velocities */
-  for(i = 0; i < 4; i++) {
-    v = sqrt(f[i]/kf);
     p[i] = (v < 1000000./65535.) ? 65535 : 1000000/v;
-
-    rotor_data->_buffer[i].target = 1000000./p[i];
   }
 
   /* send */
-  mk_send_msg(&conn->chan[0], "w%2%2%2%2", p[0], p[1], p[2], p[3]);
+  mk_send_msg(&conn->chan[0], "w%@", p, servo->target.w._length);
 
   return mikrokopter_pause_start;
 }
@@ -594,23 +574,16 @@ mk_servo_main(const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_servo_stop(const mikrokopter_conn_s *conn,
-              mikrokopter_ids_servo_s *servo,
-              const mikrokopter_rotors *rotors, genom_context self)
+              or_rotorcraft_input *target, genom_context self)
 {
-  mikrokopter_rotors_s *rotor_data = rotors->data(self);
-  uint16_t p[4];
+  uint16_t p[or_rotorcraft_max_rotors];
   int i;
 
-  servo->wrench.w.f.x = servo->wrench.w.f.y = servo->wrench.w.f.z = 0.;
-  servo->wrench.w.t.x = servo->wrench.w.t.y = servo->wrench.w.t.z = 0.;
-
-  for(i = 0; i < 4; i++) {
+  for(i = 0; i < target->w._length; i++) {
+    target->w._buffer[i] = 0.;
     p[i] = 65535;
-    rotor_data->_buffer[i].target = 1000000./p[i];
   }
-
-  /* send */
-  mk_send_msg(&conn->chan[0], "w%2%2%2%2", p[0], p[1], p[2], p[3]);
+  mk_send_msg(&conn->chan[0], "w%@", p, target->w._length);
 
   return mikrokopter_ether;
 }

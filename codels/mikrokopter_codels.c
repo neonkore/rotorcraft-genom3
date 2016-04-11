@@ -18,6 +18,7 @@
 
 #include <sys/time.h>
 #include <float.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -52,7 +53,7 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
     sensor_time->imu.seq = 0;
     sensor_time->imu.ts = 0.;
     sensor_time->imu.offset = -DBL_MAX;
-    for(i = 0; i < mikrokopter_max_rotors; i++) {
+    for(i = 0; i < or_rotorcraft_max_rotors; i++) {
       sensor_time->motor[i].seq = 0;
       sensor_time->motor[i].ts = 0.;
       sensor_time->motor[i].offset = -DBL_MAX;
@@ -134,23 +135,30 @@ mk_enable_motor(uint16_t motor, sequence8_boolean *disabled_motors,
 }
 
 
-/* --- Function set_wrench ---------------------------------------------- */
+/* --- Function set_velocity -------------------------------------------- */
 
-/** Codel mk_set_wrench of function set_wrench.
+/** Codel mk_set_velocity of function set_velocity.
  *
  * Returns genom_ok.
  */
 genom_event
-mk_set_wrench(const or_rb3d_wrench *wrench,
-              or_rotorcraft_ts_wrench *target, genom_context self)
+mk_set_velocity(const or_rotorcraft_propeller_velocity *w,
+                or_rotorcraft_input *target, genom_context self)
 {
   struct timeval tv;
+  int i;
 
   gettimeofday(&tv, NULL);
   target->ts.sec = tv.tv_sec;
   target->ts.nsec = tv.tv_usec * 1000;
 
-  target->w = *wrench;
+  target->w._length = w->_length;
+  for(i = 0; i < w->_length; i++)
+    target->w._buffer[i] = w->_buffer[i];
+
+  while(isnan(target->w._buffer[target->w._length-1]))
+    target->w._length--;
+
   return genom_ok;
 }
 

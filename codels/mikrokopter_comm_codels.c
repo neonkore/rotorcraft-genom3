@@ -97,15 +97,18 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
                mikrokopter_ids_sensor_time_s *sensor_time,
                const mikrokopter_imu *imu,
                const mikrokopter_rotors *rotors,
+               const mikrokopter_propeller_measure *propeller_measure,
                mikrokopter_ids_battery_s *battery, genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
   mikrokopter_rotors_s *rdata = rotors->data(self);
+  or_rotorcraft_input *pdata = propeller_measure->data(self);
 
   /* reset exported data in case of timeout */
   idata->vel._present = false;
   idata->acc._present = false;
   rdata->_length = 0;
+  pdata->w._length = 0;
   battery->level = 0.;
 
   if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
@@ -127,6 +130,7 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
              mikrokopter_ids_sensor_time_s *sensor_time,
              const mikrokopter_imu *imu,
              const mikrokopter_rotors *rotors,
+             const mikrokopter_propeller_measure *propeller_measure,
              mikrokopter_ids_battery_s *battery, genom_context self)
 {
   int i;
@@ -224,12 +228,16 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
         case 'M': /* motor data */
           if (len == 9) {
             mikrokopter_rotors_s *rdata = rotors->data(self);
+            or_rotorcraft_input *pdata = propeller_measure->data(self);
+
             uint8_t seq __attribute__((unused)) = *msg++;
             uint8_t state = *msg++;
             uint8_t id = state & 0xf;
 
-            if (id < 1 || id > rdata->_maximum) break;
+            if (id < 1 || id > rdata->_maximum || id > pdata->w._maximum)
+              break;
             if (id > rdata->_length) rdata->_length = id;
+            if (id > pdata->w._length) pdata->w._length = id;
             id--;
 
             rdata->_buffer[id].emerg = !!(state & 0x80);
@@ -239,9 +247,9 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
             if (rdata->_buffer[id].spinning)
-              rdata->_buffer[id].velocity =  (u16 > 0) ? 1e6/u16 : 0;
+              pdata->w._buffer[id] = (u16 > 0) ? 1e6/u16 : 0.;
             else
-              rdata->_buffer[id].velocity = 0;
+              pdata->w._buffer[id] = 0.;
 
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
@@ -260,12 +268,6 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
             battery->level = u16/1000.;
-          }
-          break;
-
-        case 'Z': /* calibration done */
-          if (len == 1) {
-            /* calibration_done = true; */
           }
           break;
       }

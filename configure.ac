@@ -33,7 +33,7 @@ AC_PROG_CXX
 
 dnl External packages
 PKG_CHECK_MODULES(requires, [
-  openrobots-idl >= 1.1
+  openrobots-idl >= 1.2
   genom3 >= 2.99.26
   eigen3
 ])

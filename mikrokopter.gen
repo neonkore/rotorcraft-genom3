@@ -14,7 +14,7 @@
  *
  *					Anthony Mallet on Fri Feb 13 2015
  */
-#pragma require "openrobots-idl >= 1.1"
+#pragma require "openrobots-idl >= 1.2"
 
 #include "or/pose/pose_estimator.gen"
 #include "or/robot/rotorcraft.gen"
@@ -29,8 +29,6 @@ component mikrokopter {
   provides	or_rotorcraft;
   uses		or_pose_estimator;
 
-  const unsigned short max_rotors = 8;
-
   exception e_sys { short code; string<128> what; };
   exception e_baddev { string<256> dev; };
   exception e_rotor_failure { unsigned short id; };
@@ -43,10 +41,9 @@ component mikrokopter {
   struct rotor_s {
     boolean emerg, spinning, starting;
     double pwm;
-    double velocity, target;
     double current;
   };
-  typedef sequence<rotor_s, max_rotors> rotors_s;
+  typedef sequence<rotor_s, or_rotorcraft::max_rotors> rotors_s;
 
   port out	rotors_s rotors;
   port out	or_pose_estimator::state imu;
@@ -63,7 +60,7 @@ component mikrokopter {
       struct ts_s {
         octet seq;
         double ts, offset;
-      } imu, motor[max_rotors], battery;
+      } imu, motor[or_rotorcraft::max_rotors], battery;
 
       struct rate_s {
         double imu, motor, battery;
@@ -84,12 +81,12 @@ component mikrokopter {
     boolean imu_calibration_updated;
 
     /* rotors state */
-    sequence<boolean, max_rotors> disabled_motors;
+    sequence<boolean, or_rotorcraft::max_rotors> disabled_motors;
 
     /* servo parameters */
     struct servo_s {
       double vmin, vmax;
-      or_rotorcraft::ts_wrench wrench;
+      or_rotorcraft::input target;
     } servo;
 
     /* logging */
@@ -122,11 +119,12 @@ component mikrokopter {
   task main {
     period control_period_ms ms;
 
-    codel<start> mk_main_init(out ::ids, in rotors, in imu)
+    codel<start> mk_main_init(out ::ids,
+                              in rotors, in propeller_measure, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
                              inout imu_calibration_updated,
-                             out rotors, out imu)
+                             out rotors, out propeller_measure, out imu)
       yield pause::main;
 
     codel<stop> mk_main_stop(inout log)
@@ -140,11 +138,13 @@ component mikrokopter {
     async codel<poll> mk_comm_poll(in conn)
       yield nodata, recv;
     codel<nodata> mk_comm_nodata(inout conn, inout sensor_time,
-                                 out imu, out rotors, out battery)
+                                 out imu, out rotors, out propeller_measure,
+                                 out battery)
       yield poll;
     codel<recv> mk_comm_recv(inout conn, in log, in imu_calibration,
                              inout sensor_time,
-                             out imu, out rotors, out battery)
+                             out imu, out rotors, out propeller_measure,
+                             out battery)
       yield poll;
 
     codel<stop> mk_comm_stop(inout conn)
@@ -263,29 +263,27 @@ component mikrokopter {
   };
 
   activity servo() {
-    doc		"Control the propellers according to the given wrench";
+    doc		"Control the propellers according to the given velocities";
     task	main;
 
-    codel<start> mk_servo_start(in conn, out servo.wrench, in cmd_wrench)
+    codel<start> mk_servo_start(in conn, out servo.target, in propeller_input)
       yield main;
 
-    codel<main> mk_servo_main(in conn, inout servo,
-                              in rotors, in disabled_motors)
+    codel<main> mk_servo_main(in conn, in disabled_motors, in rotors,
+                              inout servo)
       yield pause::start;
 
-    codel<stop> mk_servo_stop(in conn, out servo,
-                              in rotors)
+    codel<stop> mk_servo_stop(in conn, inout servo.target)
       yield ether;
 
     throw e_connection, e_rotor_failure, e_input;
   };
 
-  function set_wrench(in or::rb3d::wrench wrench = {
-      .f =: "Force", .t =: "Torque"
-    }) {
-    doc		"Set the given wrench once";
+  function set_velocity(
+       in or_rotorcraft::propeller_velocity w =: "Propeller velocities") {
+    doc		"Set the given velocity once";
 
-    codel mk_set_wrench(in wrench, out servo.wrench::target);
+    codel mk_set_velocity(in w, out servo.target);
   };
 
   function stop() {
