@@ -128,6 +128,7 @@ genom_event
 mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              mikrokopter_ids_sensor_time_s *sensor_time,
+             sequence8_mikrokopter_rotor_state_s *rotors_state,
              const mikrokopter_imu *imu,
              const mikrokopter_rotors *rotors,
              const mikrokopter_propeller_measure *propeller_measure,
@@ -234,19 +235,27 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
             uint8_t state = *msg++;
             uint8_t id = state & 0xf;
 
-            if (id < 1 || id > rdata->_maximum || id > pdata->w._maximum)
+            if (id < 1 || id > rdata->_maximum || id > pdata->w._maximum ||
+                id > rotors_state->_maximum)
               break;
             if (id > rdata->_length) rdata->_length = id;
             if (id > pdata->w._length) pdata->w._length = id;
+            if (id > rotors_state->_length) {
+              rotors_state->_length = id;
+              rotors_state->_buffer[id].disabled = false;
+            }
             id--;
 
-            rdata->_buffer[id].emerg = !!(state & 0x80);
-            rdata->_buffer[id].spinning = !!(state & 0x20);
-            rdata->_buffer[id].starting = !!(state & 0x10);
+            rdata->_buffer[id].state.emerg = !!(state & 0x80);
+            rdata->_buffer[id].state.spinning = !!(state & 0x20);
+            rdata->_buffer[id].state.starting = !!(state & 0x10);
+            rdata->_buffer[id].state.disabled =
+              rotors_state->_buffer[id].disabled;
+            rotors_state->_buffer[id] = rdata->_buffer[id].state;
 
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
-            if (rdata->_buffer[id].spinning)
+            if (rdata->_buffer[id].state.spinning)
               pdata->w._buffer[id] = (u16 > 0) ? 1e6/u16 : 0.;
             else
               pdata->w._buffer[id] = 0.;

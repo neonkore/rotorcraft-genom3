@@ -104,14 +104,18 @@ mk_set_imu_calibration(bool *imu_calibration_updated,
  * Returns genom_ok.
  */
 genom_event
-mk_disable_motor(uint16_t motor, sequence8_boolean *disabled_motors,
+mk_disable_motor(uint16_t motor,
+                 sequence8_mikrokopter_rotor_state_s *rotors_state,
                  genom_context self)
 {
-  if (motor < 1 || motor > disabled_motors->_maximum)
+  if (motor < 1 || motor > rotors_state->_maximum)
     return mikrokopter_e_range(self);
 
-  if (motor > disabled_motors->_length) disabled_motors->_length = motor;
-  disabled_motors->_buffer[motor-1] = true;
+  if (motor > rotors_state->_length) rotors_state->_length = motor;
+  rotors_state->_buffer[motor-1].emerg = false;
+  rotors_state->_buffer[motor-1].spinning = false;
+  rotors_state->_buffer[motor-1].starting = false;
+  rotors_state->_buffer[motor-1].disabled = true;
   return genom_ok;
 }
 
@@ -123,14 +127,18 @@ mk_disable_motor(uint16_t motor, sequence8_boolean *disabled_motors,
  * Returns genom_ok.
  */
 genom_event
-mk_enable_motor(uint16_t motor, sequence8_boolean *disabled_motors,
+mk_enable_motor(uint16_t motor,
+                sequence8_mikrokopter_rotor_state_s *rotors_state,
                 genom_context self)
 {
-  if (motor < 1 || motor > disabled_motors->_maximum)
+  if (motor < 1 || motor > rotors_state->_maximum)
     return mikrokopter_e_range(self);
 
-  if (motor > disabled_motors->_length) disabled_motors->_length = motor;
-  disabled_motors->_buffer[motor-1] = false;
+  if (motor > rotors_state->_length) rotors_state->_length = motor;
+  rotors_state->_buffer[motor-1].emerg = false;
+  rotors_state->_buffer[motor-1].spinning = false;
+  rotors_state->_buffer[motor-1].starting = false;
+  rotors_state->_buffer[motor-1].disabled = false;
   return genom_ok;
 }
 
@@ -140,24 +148,47 @@ mk_enable_motor(uint16_t motor, sequence8_boolean *disabled_motors,
 /** Codel mk_set_velocity of function set_velocity.
  *
  * Returns genom_ok.
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
  */
 genom_event
-mk_set_velocity(const or_rotorcraft_propeller_velocity *w,
-                or_rotorcraft_input *target, genom_context self)
+mk_set_velocity(const mikrokopter_conn_s *conn,
+                const sequence8_mikrokopter_rotor_state_s *rotors_state,
+                const or_rotorcraft_propeller_velocity *w,
+                genom_context self)
 {
-  struct timeval tv;
+  mikrokopter_e_rotor_failure_detail e;
+  uint16_t p[or_rotorcraft_max_rotors];
+  double v;
+  size_t l;
   int i;
 
-  gettimeofday(&tv, NULL);
-  target->ts.sec = tv.tv_sec;
-  target->ts.nsec = tv.tv_usec * 1000;
+  /* check rotors status */
+  for(i = 0; i < rotors_state->_length; i++) {
+    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
+      continue;
 
-  target->w._length = w->_length;
-  for(i = 0; i < w->_length; i++)
-    target->w._buffer[i] = w->_buffer[i];
+    if (!rotors_state->_buffer[i].spinning) {
+      e.id = 1 + i;
+      return mikrokopter_e_rotor_failure(&e, self);
+    }
+  }
 
-  while(isnan(target->w._buffer[target->w._length-1]))
-    target->w._length--;
+  /* discard trailing nans */
+  l = w->_length;
+  while(isnan(w->_buffer[l-1])) l--;
+
+  /* rotational period */
+  for(i = 0; i < l; i++) {
+    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
+      v = 0.;
+    else
+      v = w->_buffer[i];
+
+    p[i] = (v < 1000000./65535.) ? 65535 : 1000000/v;
+  }
+
+  /* send */
+  mk_send_msg(&conn->chan[0], "w%@", p, l);
 
   return genom_ok;
 }

@@ -84,7 +84,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
 
   ids->imu_calibration_updated = true;
 
-  ids->disabled_motors._length = 0;
+  ids->rotors_state._length = 0;
 
   ids->servo.vmin = 16.;
   ids->servo.vmax = 100.;
@@ -390,22 +390,17 @@ mk_set_zero(double accum[3], double gycum[3],
  */
 genom_event
 mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
-               const mikrokopter_rotors *rotors,
-               const sequence8_boolean *disabled_motors,
+               const sequence8_mikrokopter_rotor_state_s *rotors_state,
                genom_context self)
 {
-  mikrokopter_rotors_s *rdata = rotors->data(self);
   int i;
 
   if (!conn) return mikrokopter_e_connection(self);
-  if (rdata->_length == 0) {
-    mikrokopter_e_rotor_failure_detail e = { .id = 0 };
-    return mikrokopter_e_rotor_failure(&e, self);
-  }
-  for(i = 0; i < rdata->_length; i++) {
-    if (i < disabled_motors->_length && disabled_motors->_buffer[i])
+  for(i = 0; i < rotors_state->_length; i++) {
+    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
       continue;
-    if (rdata->_buffer[i].spinning) return mikrokopter_e_started(self);
+    if (rotors_state->_buffer[i].spinning)
+      return mikrokopter_e_started(self);
   }
 
   *state = 0;
@@ -423,30 +418,29 @@ mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
  */
 genom_event
 mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
-                 const mikrokopter_rotors *rotors,
-                 const sequence8_boolean *disabled_motors,
+                 const sequence8_mikrokopter_rotor_state_s *rotors_state,
                  genom_context self)
 {
-  mikrokopter_rotors_s *rdata = rotors->data(self);
   mikrokopter_e_rotor_failure_detail e;
   mikrokopter_e_rotor_not_disabled_detail d;
   int i;
 
-  for(i = 0; i < rdata->_length; i++) {
-    if (i < disabled_motors->_length && disabled_motors->_buffer[i]) {
-      if (rdata->_buffer[i].spinning) {
+  for(i = 0; i < rotors_state->_length; i++) {
+    if (rotors_state->_buffer[i].spinning) {
+      if (rotors_state->_buffer[i].disabled) {
         mk_send_msg(&conn->chan[0], "x");
         d.id = 1 + i;
         return mikrokopter_e_rotor_not_disabled(&d, self);
       }
+
       continue;
     }
+    if (rotors_state->_buffer[i].disabled) continue;
 
-    if (rdata->_buffer[i].spinning) continue;
-    if (rdata->_buffer[i].starting) *state |= 1 << i;
+    if (rotors_state->_buffer[i].starting) *state |= 1 << i;
 
-    if ((!rdata->_buffer[i].starting && (*state & (1 << i))) ||
-        rdata->_buffer[i].emerg) {
+    if ((!rotors_state->_buffer[i].starting && (*state & (1 << i))) ||
+        rotors_state->_buffer[i].emerg) {
       mk_send_msg(&conn->chan[0], "x");
       e.id = 1 + i;
       return mikrokopter_e_rotor_failure(&e, self);
@@ -476,91 +470,42 @@ mk_start_stop(const mikrokopter_conn_s *conn, genom_context self)
 
 /* --- Activity servo --------------------------------------------------- */
 
-/** Codel mk_servo_start of activity servo.
- *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_main.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_input.
- */
-genom_event
-mk_servo_start(const mikrokopter_conn_s *conn,
-               or_rotorcraft_input *target,
-               const mikrokopter_propeller_input *propeller_input,
-               genom_context self)
-{
-  or_rotorcraft_input *input_data;
-  int i;
-
-  /* update input if connected */
-  if (propeller_input->read(self)) return mikrokopter_main;
-
-  input_data = propeller_input->data(self);
-  if (!input_data) return mikrokopter_e_input(self);
-
-  target->ts = input_data->ts;
-  target->w._length = input_data->w._length;
-  for(i = 0; i < input_data->w._length; i++)
-    target->w._buffer[i] = input_data->w._buffer[i];
-
-  return mikrokopter_main;
-}
-
 /** Codel mk_servo_main of activity servo.
  *
- * Triggered by mikrokopter_main.
- * Yields to mikrokopter_pause_start.
+ * Triggered by mikrokopter_start.
+ * Yields to mikrokopter_pause_start, mikrokopter_stop.
  * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
  *        mikrokopter_e_input.
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
-              const sequence8_boolean *disabled_motors,
-              const mikrokopter_rotors *rotors,
-              mikrokopter_ids_servo_s *servo, genom_context self)
+              const sequence8_mikrokopter_rotor_state_s *rotors_state,
+              const mikrokopter_propeller_input *propeller_input,
+              genom_context self)
 {
-  mikrokopter_rotors_s *rotor_data = rotors->data(self);
-  mikrokopter_e_rotor_failure_detail e;
-
+  or_rotorcraft_input *input_data;
   struct timeval tv;
-  uint16_t p[or_rotorcraft_max_rotors];
-  double v;
-  int i;
+  genom_event e;
 
   if (!conn) return mikrokopter_e_connection(self);
 
-  /* check rotors status */
-  for(i = 0; i < rotor_data->_length; i++) {
-    if (i < disabled_motors->_length && disabled_motors->_buffer[i])
-      continue;
+  /* update input */
+  if (propeller_input->read(self)) return mikrokopter_e_input(self);
 
-    if (!rotor_data->_buffer[i].spinning) {
-      e.id = 1 + i;
-      return mikrokopter_e_rotor_failure(&e, self);
-    }
-  }
+  input_data = propeller_input->data(self);
+  if (!input_data) return mikrokopter_e_input(self);
 
   /* watchdog */
   gettimeofday(&tv, NULL);
   if (tv.tv_sec + 1e-6*tv.tv_usec >
-      0.5 + servo->target.ts.sec + 1e-9*servo->target.ts.nsec) {
+      0.5 + input_data->ts.sec + 1e-9*input_data->ts.nsec) {
     /* do something smart here, instead of the following */
-    for(i = 0; i < servo->target.w._length; i++)
-      servo->target.w._buffer[i] = 0.;
-  }
-
-  /* rotational period */
-  for(i = 0; i < servo->target.w._length; i++) {
-    if (i < disabled_motors->_length && disabled_motors->_buffer[i])
-      v = 0.;
-    else
-      v = servo->target.w._buffer[i];
-
-    p[i] = (v < 1000000./65535.) ? 65535 : 1000000/v;
+    return mikrokopter_stop;
   }
 
   /* send */
-  mk_send_msg(&conn->chan[0], "w%@", p, servo->target.w._length);
+  e = mk_set_velocity(conn, rotors_state, &input_data->w, self);
+  if (e) return e;
 
   return mikrokopter_pause_start;
 }
@@ -573,17 +518,14 @@ mk_servo_main(const mikrokopter_conn_s *conn,
  *        mikrokopter_e_input.
  */
 genom_event
-mk_servo_stop(const mikrokopter_conn_s *conn,
-              or_rotorcraft_input *target, genom_context self)
+mk_servo_stop(const mikrokopter_conn_s *conn, genom_context self)
 {
   uint16_t p[or_rotorcraft_max_rotors];
   int i;
 
-  for(i = 0; i < target->w._length; i++) {
-    target->w._buffer[i] = 0.;
-    p[i] = 65535;
-  }
-  mk_send_msg(&conn->chan[0], "w%@", p, target->w._length);
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) p[i] = 65535;
+
+  mk_send_msg(&conn->chan[0], "w%@", p, or_rotorcraft_max_rotors);
 
   return mikrokopter_ether;
 }
