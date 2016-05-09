@@ -157,7 +157,7 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
                 genom_context self)
 {
   mikrokopter_e_rotor_failure_detail e;
-  uint16_t p[or_rotorcraft_max_rotors];
+  int16_t p[or_rotorcraft_max_rotors];
   double v;
   size_t l;
   int i;
@@ -184,7 +184,7 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
     else
       v = w->_buffer[i];
 
-    p[i] = (v < 1000000./65535.) ? 65535 : 1000000/v;
+    p[i] = (fabs(v) < 1000000./65535.) ? ((v<0)?-32767:32767) : 1000000/2/v;
   }
 
   /* send */

@@ -253,16 +253,16 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
               rotors_state->_buffer[id].disabled;
             rotors_state->_buffer[id] = rdata->_buffer[id].state;
 
-            u16 = ((uint16_t)(*msg++) << 8);
-            u16 |= ((uint16_t)(*msg++) << 0);
+            v16 = ((int16_t)(*msg++) << 8);
+            v16 |= ((uint16_t)(*msg++) << 0);
             if (rdata->_buffer[id].state.spinning)
-              pdata->w._buffer[id] = (u16 > 0) ? 1e6/u16 : 0.;
+              pdata->w._buffer[id] = v16 ? 1e6/2/v16 : 0.;
             else
               pdata->w._buffer[id] = 0.;
 
-            u16 = ((uint16_t)(*msg++) << 8);
-            u16 |= ((uint16_t)(*msg++) << 0);
-            rdata->_buffer[id].pwm = u16 * 100./1024.;
+            v16 = ((int16_t)(*msg++) << 8);
+            v16 |= ((uint16_t)(*msg++) << 0);
+            rdata->_buffer[id].pwm = v16 * 100./1024.;
 
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
@@ -322,7 +322,7 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
                  mikrokopter_ids_sensor_time_s *sensor_time,
                  genom_context self)
 {
-  static const char magic[] = "[?]mkfl1.5*";
+  static const char magic[] = "[?]mkfl1.6*";
 
   speed_t s;
   int i, c;
