@@ -240,10 +240,7 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
               break;
             if (id > rdata->_length) rdata->_length = id;
             if (id > pdata->w._length) pdata->w._length = id;
-            if (id > rotors_state->_length) {
-              rotors_state->_length = id;
-              rotors_state->_buffer[id].disabled = false;
-            }
+            if (id > rotors_state->_length) rotors_state->_length = id;
             id--;
 
             rdata->_buffer[id].state.emerg = !!(state & 0x80);

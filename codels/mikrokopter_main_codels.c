@@ -39,6 +39,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
              const mikrokopter_imu *imu, genom_context self)
 {
   genom_event e;
+  int i;
 
   ids->sensor_time.rate.imu = 1000;
   ids->sensor_time.rate.motor = 100;
@@ -85,12 +86,30 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
   ids->imu_calibration_updated = true;
 
   ids->rotors_state._length = 0;
+  for(i = 0; i < ids->rotors_state._maximum; i++) {
+    ids->rotors_state._buffer[i].emerg = false;
+    ids->rotors_state._buffer[i].spinning = false;
+    ids->rotors_state._buffer[i].starting = false;
+    ids->rotors_state._buffer[i].disabled = false;
+  }
 
   ids->servo.vmin = 16.;
   ids->servo.vmax = 100.;
 
   rotors->data(self)->_length = 0;
+  for(i = 0; i < rotors->data(self)->_maximum; i++) {
+    rotors->data(self)->_buffer[i].state.emerg = false;
+    rotors->data(self)->_buffer[i].state.spinning = false;
+    rotors->data(self)->_buffer[i].state.starting = false;
+    rotors->data(self)->_buffer[i].state.disabled = false;
+  }
   propeller_measure->data(self)->w._length = 0;
+  for(i = 0; i < propeller_measure->data(self)->w._maximum; i++) {
+    propeller_measure->data(self)->w._buffer[i] = 0.;
+    propeller_measure->data(self)->w._buffer[i] = 0.;
+    propeller_measure->data(self)->w._buffer[i] = 0.;
+    propeller_measure->data(self)->w._buffer[i] = 0.;
+  }
 
   or_pose_estimator_state *imu_data = imu->data(self);
   imu_data->ts = (or_time_ts){ 0, 0 };
