@@ -194,21 +194,6 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
 }
 
 
-/* --- Function stop ---------------------------------------------------- */
-
-/** Codel mk_stop of function stop.
- *
- * Returns genom_ok.
- */
-genom_event
-mk_stop(const mikrokopter_conn_s *conn, genom_context self)
-{
-  if (!conn) return mikrokopter_e_connection(self);
-  mk_send_msg(&conn->chan[0], "x");
-  return genom_ok;
-}
-
-
 /* --- Function log ----------------------------------------------------- */
 
 /** Codel mk_log_start of function log.

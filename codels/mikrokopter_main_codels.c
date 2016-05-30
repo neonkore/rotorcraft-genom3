@@ -474,16 +474,22 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
 /** Codel mk_start_stop of activity start.
  *
  * Triggered by mikrokopter_stop.
- * Yields to mikrokopter_ether.
+ * Yields to mikrokopter_pause_stop, mikrokopter_ether.
  * Throws mikrokopter_e_connection, mikrokopter_e_started,
  *        mikrokopter_e_rotor_failure,
  *        mikrokopter_e_rotor_not_disabled.
  */
 genom_event
-mk_start_stop(const mikrokopter_conn_s *conn, genom_context self)
+mk_start_stop(const mikrokopter_conn_s *conn,
+              const sequence8_mikrokopter_rotor_state_s *rotors_state,
+              genom_context self)
 {
-  mk_send_msg(&conn->chan[0], "x");
-  return mikrokopter_ether;
+  genom_event e;
+
+  e = mk_stop(conn, rotors_state, self);
+  if (e == mikrokopter_ether) return mikrokopter_ether;
+
+  return mikrokopter_pause_stop;
 }
 
 
@@ -545,6 +551,34 @@ mk_servo_stop(const mikrokopter_conn_s *conn, genom_context self)
   for(i = 0; i < or_rotorcraft_max_rotors; i++) p[i] = 65535;
 
   mk_send_msg(&conn->chan[0], "w%@", p, or_rotorcraft_max_rotors);
+
+  return mikrokopter_ether;
+}
+
+
+/* --- Activity stop ---------------------------------------------------- */
+
+/** Codel mk_stop of activity stop.
+ *
+ * Triggered by mikrokopter_start.
+ * Yields to mikrokopter_pause_start, mikrokopter_ether.
+ */
+genom_event
+mk_stop(const mikrokopter_conn_s *conn,
+        const sequence8_mikrokopter_rotor_state_s *rotors_state,
+        genom_context self)
+{
+  int i;
+
+  if (!conn) return mikrokopter_e_connection(self);
+  mk_send_msg(&conn->chan[0], "x");
+
+  for(i = 0; i < rotors_state->_length; i++) {
+    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
+      continue;
+    if (rotors_state->_buffer[i].spinning)
+      return mikrokopter_pause_start;
+  }
 
   return mikrokopter_ether;
 }

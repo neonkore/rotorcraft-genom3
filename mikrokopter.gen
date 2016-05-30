@@ -252,8 +252,8 @@ component mikrokopter {
       yield monitor;
     codel<monitor> mk_start_monitor(in conn, inout state, in rotors_state)
       yield pause::monitor, ether;
-    codel<stop> mk_start_stop(in conn)
-      yield ether;
+    codel<stop> mk_start_stop(in conn, in rotors_state)
+      yield pause::stop, ether;
 
     interrupt start;
     throw e_connection, e_started, e_rotor_failure, e_rotor_not_disabled;
@@ -282,10 +282,14 @@ component mikrokopter {
     throw e_connection, e_rotor_failure;
   };
 
-  function stop() {
+  activity stop() {
     doc		"Stop all propellers";
+    task	main;
+
+    codel<start> mk_stop(in conn, in rotors_state)
+      yield pause::start, ether;
+
     interrupt servo, start;
-    codel mk_stop(in conn);
   };
 
 
