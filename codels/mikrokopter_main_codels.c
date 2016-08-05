@@ -93,8 +93,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
     ids->rotors_state._buffer[i].disabled = false;
   }
 
-  ids->servo.vmin = 16.;
-  ids->servo.vmax = 100.;
+  ids->servo.ramp = 3.;
 
   rotors->data(self)->_length = 0;
   for(i = 0; i < rotors->data(self)->_maximum; i++) {
@@ -495,10 +494,24 @@ mk_start_stop(const mikrokopter_conn_s *conn,
 
 /* --- Activity servo --------------------------------------------------- */
 
-/** Codel mk_servo_main of activity servo.
+/** Codel mk_servo_start of activity servo.
  *
  * Triggered by mikrokopter_start.
- * Yields to mikrokopter_pause_start, mikrokopter_stop.
+ * Yields to mikrokopter_main.
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
+ *        mikrokopter_e_input.
+ */
+genom_event
+mk_servo_start(double *scale, genom_context self)
+{
+  *scale = 0.;
+  return mikrokopter_main;
+}
+
+/** Codel mk_servo_main of activity servo.
+ *
+ * Triggered by mikrokopter_main.
+ * Yields to mikrokopter_pause_main, mikrokopter_stop.
  * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
  *        mikrokopter_e_input.
  */
@@ -506,6 +519,7 @@ genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
               const sequence8_mikrokopter_rotor_state_s *rotors_state,
               const mikrokopter_propeller_input *propeller_input,
+              const mikrokopter_ids_servo_s *servo, double *scale,
               genom_context self)
 {
   or_rotorcraft_input *input_data;
@@ -520,6 +534,14 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   input_data = propeller_input->data(self);
   if (!input_data) return mikrokopter_e_input(self);
 
+  if (*scale < 1.) {
+    int i;
+    for(i = 0; i < input_data->w._length; i++)
+      input_data->w._buffer[i] *= *scale;
+
+    *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
+  }
+
   /* watchdog */
   gettimeofday(&tv, NULL);
   if (tv.tv_sec + 1e-6*tv.tv_usec >
@@ -532,7 +554,7 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   e = mk_set_velocity(conn, rotors_state, &input_data->w, self);
   if (e) return e;
 
-  return mikrokopter_pause_start;
+  return mikrokopter_pause_main;
 }
 
 /** Codel mk_servo_stop of activity servo.

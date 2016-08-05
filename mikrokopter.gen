@@ -88,7 +88,7 @@ component mikrokopter {
 
     /* servo parameters */
     struct servo_s {
-      double vmin, vmax;
+      double ramp;
     } servo;
 
     /* logging */
@@ -108,7 +108,7 @@ component mikrokopter {
     validate mk_set_imu_calibration(out imu_calibration_updated);
   };
 
-  attribute set_vlimit(in servo.vmin, in servo.vmax);
+  attribute set_ramp(in servo.ramp);
 
 
   /* --- tasks ------------------------------------------------------------- */
@@ -263,8 +263,13 @@ component mikrokopter {
     doc		"Control the propellers according to the given velocities";
     task	main;
 
-    codel<start> mk_servo_main(in conn, in rotors_state, in propeller_input)
-      yield pause::start, stop;
+    local double scale;
+
+    codel<start> mk_servo_start(out scale)
+      yield main;
+    codel<main> mk_servo_main(in conn, in rotors_state, in propeller_input,
+                              in servo, inout scale)
+      yield pause::main, stop;
 
     codel<stop> mk_servo_stop(in conn)
       yield ether;
