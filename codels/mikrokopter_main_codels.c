@@ -548,7 +548,7 @@ mk_servo_stop(const mikrokopter_conn_s *conn, genom_context self)
   uint16_t p[or_rotorcraft_max_rotors];
   int i;
 
-  for(i = 0; i < or_rotorcraft_max_rotors; i++) p[i] = 65535;
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) p[i] = 32767;
 
   mk_send_msg(&conn->chan[0], "w%@", p, or_rotorcraft_max_rotors);
 
