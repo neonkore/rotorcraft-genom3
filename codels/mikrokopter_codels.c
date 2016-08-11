@@ -152,6 +152,7 @@ mk_enable_motor(uint16_t motor,
  */
 genom_event
 mk_set_velocity(const mikrokopter_conn_s *conn,
+                const mikrokopter_log_s *log,
                 const sequence8_mikrokopter_rotor_state_s *rotors_state,
                 const or_rotorcraft_propeller_velocity *w,
                 genom_context self)
@@ -190,6 +191,16 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
   /* send */
   mk_send_msg(&conn->chan[0], "w%@", p, l);
 
+  /* log */
+  if (log) {
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+    fprintf(log->logf, mikrokopter_log_cmd_v "\n",
+            (int)tv.tv_sec, (int)tv.tv_usec * 1000,
+            w->_buffer[0], w->_buffer[1], w->_buffer[2], w->_buffer[3],
+            w->_buffer[4], w->_buffer[5], w->_buffer[6], w->_buffer[7]);
+  }
   return genom_ok;
 }
 

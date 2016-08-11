@@ -517,10 +517,11 @@ mk_servo_start(double *scale, genom_context self)
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
+              const mikrokopter_log_s *log,
               const sequence8_mikrokopter_rotor_state_s *rotors_state,
               const mikrokopter_propeller_input *propeller_input,
               const mikrokopter_ids_servo_s *servo, double *scale,
-              genom_context self)
+              const mikrokopter_imu *imu, genom_context self)
 {
   or_rotorcraft_input *input_data;
   struct timeval tv;
@@ -551,7 +552,7 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   }
 
   /* send */
-  e = mk_set_velocity(conn, rotors_state, &input_data->w, self);
+  e = mk_set_velocity(conn, log, rotors_state, &input_data->w, self);
   if (e) return e;
 
   return mikrokopter_pause_main;

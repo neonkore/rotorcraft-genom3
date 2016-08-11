@@ -264,6 +264,19 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
             rdata->_buffer[id].current = u16 / 1e3;
+
+            /* log */
+            if (log) {
+              struct timeval tv;
+
+              gettimeofday(&tv, NULL);
+              fprintf(log->logf, mikrokopter_log_meas_v "\n",
+                      (int)tv.tv_sec, (int)tv.tv_usec * 1000,
+                      pdata->w._buffer[0], pdata->w._buffer[1],
+                      pdata->w._buffer[2], pdata->w._buffer[3],
+                      pdata->w._buffer[4], pdata->w._buffer[5],
+                      pdata->w._buffer[6], pdata->w._buffer[7]);
+            }
           }
           break;
 

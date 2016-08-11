@@ -267,8 +267,8 @@ component mikrokopter {
 
     codel<start> mk_servo_start(out scale)
       yield main;
-    codel<main> mk_servo_main(in conn, in rotors_state, in propeller_input,
-                              in servo, inout scale)
+    codel<main> mk_servo_main(in conn, in log, in rotors_state,
+                              in propeller_input, in servo, inout scale, in imu)
       yield pause::main, stop;
 
     codel<stop> mk_servo_stop(in conn)
@@ -281,7 +281,7 @@ component mikrokopter {
        in or_rotorcraft::propeller_velocity w =: "Propeller velocities") {
     doc		"Set the given velocity once";
 
-    codel mk_set_velocity(in conn, in rotors_state, in w);
+    codel mk_set_velocity(in conn, in log, in rotors_state, in w);
 
     interrupt servo;
     throw e_connection, e_rotor_failure;
