@@ -85,6 +85,7 @@ component mikrokopter {
 
     /* rotors state */
     sequence<rotor_state_s, or_rotorcraft::max_rotors> rotors_state;
+    double rotors_wd[or_rotorcraft::max_rotors];
 
     /* servo parameters */
     struct servo_s {
@@ -122,8 +123,8 @@ component mikrokopter {
                               in rotors, in propeller_measure, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
-                             inout imu_calibration_updated,
-                             out rotors, out propeller_measure, out imu)
+                             in rotors_wd, inout imu_calibration_updated,
+                             in log, out rotors, out propeller_measure, out imu)
       yield pause::main;
 
     codel<stop> mk_main_stop(inout log)
@@ -140,7 +141,7 @@ component mikrokopter {
                                  out imu, out rotors, out propeller_measure,
                                  out battery)
       yield poll;
-    codel<recv> mk_comm_recv(inout conn, in log, in imu_calibration,
+    codel<recv> mk_comm_recv(inout conn, in imu_calibration,
                              inout sensor_time, out rotors_state,
                              out imu, out rotors, out propeller_measure,
                              out battery)
@@ -267,7 +268,7 @@ component mikrokopter {
 
     codel<start> mk_servo_start(out scale)
       yield main;
-    codel<main> mk_servo_main(in conn, in log, in rotors_state,
+    codel<main> mk_servo_main(in conn, in rotors_state, out rotors_wd,
                               in propeller_input, in servo, inout scale, in imu)
       yield pause::main, stop;
 
@@ -281,7 +282,7 @@ component mikrokopter {
        in or_rotorcraft::propeller_velocity w =: "Propeller velocities") {
     doc		"Set the given velocity once";
 
-    codel mk_set_velocity(in conn, in log, in rotors_state, in w);
+    codel mk_set_velocity(in conn, in rotors_state, out rotors_wd, in w);
 
     interrupt servo;
     throw e_connection, e_rotor_failure;

@@ -125,7 +125,7 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
+mk_comm_recv(mikrokopter_conn_s **conn,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              mikrokopter_ids_sensor_time_s *sensor_time,
              sequence8_mikrokopter_rotor_state_s *rotors_state,
@@ -155,6 +155,8 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
             gettimeofday(&tv, NULL);
             idata->ts = mk_get_ts(
               seq, tv, sensor_time->rate.imu, &sensor_time->imu);
+            idata->ts.sec = tv.tv_sec;
+            idata->ts.nsec = 1000*tv.tv_usec;
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
@@ -211,18 +213,6 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
 
             idata->vel._present = true;
             idata->acc._present = true;
-
-            /* log */
-            if (log) {
-              fprintf(log->logf, mikrokopter_log_imu "\n",
-                      idata->ts.sec, idata->ts.nsec,
-                      idata->vel._value.wx,
-                      idata->vel._value.wy,
-                      idata->vel._value.wz,
-                      idata->acc._value.ax,
-                      idata->acc._value.ay,
-                      idata->acc._value.az);
-            }
           }
           break;
 
@@ -264,19 +254,6 @@ mk_comm_recv(mikrokopter_conn_s **conn, const mikrokopter_log_s *log,
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
             rdata->_buffer[id].current = u16 / 1e3;
-
-            /* log */
-            if (log) {
-              struct timeval tv;
-
-              gettimeofday(&tv, NULL);
-              fprintf(log->logf, mikrokopter_log_meas_v "\n",
-                      (int)tv.tv_sec, (int)tv.tv_usec * 1000,
-                      pdata->w._buffer[0], pdata->w._buffer[1],
-                      pdata->w._buffer[2], pdata->w._buffer[3],
-                      pdata->w._buffer[4], pdata->w._buffer[5],
-                      pdata->w._buffer[6], pdata->w._buffer[7]);
-            }
           }
           break;
 

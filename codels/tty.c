@@ -158,7 +158,7 @@ mk_recv_msg(struct mk_channel_s *chan, bool block)
 
         s = poll(&fd, 1, 500/*ms*/);
         if (fd.revents & POLLHUP) return -1;
-      } else if (s == 0)
+      } else if (s == 0 && chan->r == chan->w)
         return 0;
       else
         chan->w = (chan->w + s) % sizeof(chan->buf);

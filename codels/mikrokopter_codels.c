@@ -152,14 +152,13 @@ mk_enable_motor(uint16_t motor,
  */
 genom_event
 mk_set_velocity(const mikrokopter_conn_s *conn,
-                const mikrokopter_log_s *log,
                 const sequence8_mikrokopter_rotor_state_s *rotors_state,
+                double rotors_wd[8],
                 const or_rotorcraft_propeller_velocity *w,
                 genom_context self)
 {
   mikrokopter_e_rotor_failure_detail e;
   int16_t p[or_rotorcraft_max_rotors];
-  double v;
   size_t l;
   int i;
 
@@ -181,26 +180,16 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
   /* rotational period */
   for(i = 0; i < l; i++) {
     if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
-      v = 0.;
+      rotors_wd[i] = 0.;
     else
-      v = w->_buffer[i];
+      rotors_wd[i] = w->_buffer[i];
 
-    p[i] = (fabs(v) < 1000000./65535.) ? ((v<0)?-32767:32767) : 1000000/2/v;
+    p[i] = (fabs(rotors_wd[i]) < 1000000./65535.) ?
+      copysign(32767, rotors_wd[i]) : 1000000/2/rotors_wd[i];
   }
 
   /* send */
   mk_send_msg(&conn->chan[0], "w%@", p, l);
-
-  /* log */
-  if (log) {
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    fprintf(log->logf, mikrokopter_log_cmd_v "\n",
-            (int)tv.tv_sec, (int)tv.tv_usec * 1000,
-            w->_buffer[0], w->_buffer[1], w->_buffer[2], w->_buffer[3],
-            w->_buffer[4], w->_buffer[5], w->_buffer[6], w->_buffer[7]);
-  }
   return genom_ok;
 }
 
