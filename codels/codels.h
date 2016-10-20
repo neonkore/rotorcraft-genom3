@@ -110,4 +110,12 @@ extern "C" {
 }
 #endif
 
+struct mk_iir_filter {
+  double x[3], y[3];
+};
+
+void	mk_imu_iirf_init(double fsfilt, double gb, double Q, double fmin,
+                double fmax);
+double	mk_imu_iirf(double v, struct mk_iir_filter *H, double f0);
+
 #endif /* H_MIKROKOPTER_CODELS */

@@ -123,6 +123,8 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
   imu_data->acc._present = false;
   imu_data->acc_cov._present = false;
 
+  mk_imu_iirf_init(1000. / mikrokopter_control_period_ms, 0.05, 5, 15, 143);
+
   return mikrokopter_main;
 }
 
@@ -142,6 +144,8 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_propeller_measure *propeller_measure,
              const mikrokopter_imu *imu, genom_context self)
 {
+  or_pose_estimator_state *idata = imu->data(self);
+
   /* battery level */
   if (conn && conn->chan[0].fd >= 0) {
     if (battery->level > 0. && battery->level < battery->alarm) {
@@ -154,8 +158,6 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* imu covariance data */
   if (*imu_calibration_updated) {
-    or_pose_estimator_state *idata = imu->data(self);
-
     idata->vel_cov._value.cov[0] = 0.;
     idata->vel_cov._value.cov[1] = 0.;
     idata->vel_cov._value.cov[2] = 0.;
@@ -194,6 +196,30 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     idata->acc_cov._present = true;
 
     *imu_calibration_updated = false;
+  }
+
+  /* filter IMU */
+  {
+    static struct mk_iir_filter Hwx, Hwy, Hwz, Hax, Hay, Haz;
+
+    int i, c;
+    double favg;
+
+    for(i = c = 0; i < or_rotorcraft_max_rotors; i++) {
+      if (rotors_wd[i] > 15.) { c++; favg += rotors_wd[i]; }
+    }
+
+    if (c) {
+      favg /= c;
+
+      idata->acc._value.ax = mk_imu_iirf(idata->acc._value.ax, &Hax, favg);
+      idata->acc._value.ay = mk_imu_iirf(idata->acc._value.ay, &Hay, favg);
+      idata->acc._value.az = mk_imu_iirf(idata->acc._value.az, &Haz, favg);
+
+      idata->vel._value.wx = mk_imu_iirf(idata->vel._value.wx, &Hwx, favg);
+      idata->vel._value.wy = mk_imu_iirf(idata->vel._value.wy, &Hwy, favg);
+      idata->vel._value.wz = mk_imu_iirf(idata->vel._value.wz, &Hwz, favg);
+    }
   }
 
 

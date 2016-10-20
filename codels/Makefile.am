@@ -22,6 +22,7 @@ libmikrokopter_codels_la_SOURCES+=	mikrokopter_main_codels.c
 libmikrokopter_codels_la_SOURCES+=	mikrokopter_comm_codels.c
 libmikrokopter_codels_la_SOURCES+=	tty.c
 libmikrokopter_codels_la_SOURCES+=	calibration.cc
+libmikrokopter_codels_la_SOURCES+=	filter.c
 libmikrokopter_codels_la_SOURCES+=	codels.h
 
 libmikrokopter_codels_la_CPPFLAGS=	$(requires_CFLAGS)
