@@ -27,6 +27,8 @@
 
 /* --- Task main -------------------------------------------------------- */
 
+static struct mk_iir_filter Hax, Hay, Haz, Hwx, Hwy, Hwz;
+
 
 /** Codel mk_main_init of task main.
  *
@@ -124,6 +126,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
   imu_data->acc_cov._present = false;
 
   mk_imu_iirf_init(1000. / mikrokopter_control_period_ms, 0.05, 5, 15, 143);
+  Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
 
   return mikrokopter_main;
 }
@@ -200,8 +203,6 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* filter IMU */
   {
-    static struct mk_iir_filter Hwx, Hwy, Hwz, Hax, Hay, Haz;
-
     int i, c;
     double favg;
 

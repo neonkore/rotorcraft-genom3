@@ -61,6 +61,7 @@ mk_imu_iirf_init(double fsfilt, double gb, double Q, double fmin, double fmax)
   }
 }
 
+
 /* --- mk_imu_iirf --------------------------------------------------------- */
 
 /* This function does the actual notch filter processing
@@ -74,13 +75,18 @@ mk_imu_iirf(double v, struct mk_iir_filter *H, double f0)
   int i = (f0 - iirf_fmin) / (iirf_fmax - iirf_fmin) * IIRF_COEFFS;
   if (i < 0) i = 0; else if (i > IIRF_COEFFS) i = IIRF_COEFFS;
 
-  H->x[0] = H->x[1];
-  H->x[1] = H->x[2];
+  if (isnan(H->x[0])) {
+    H->x[0] = H->x[1] = v;
+    H->y[0] = H->y[1] = v;
+  } else {
+    H->x[0] = H->x[1];
+    H->x[1] = H->x[2];
+
+    H->y[0] = H->y[1];
+    H->y[1] = H->y[2];
+  }
+
   H->x[2] = v;
-
-  H->y[0] = H->y[1];
-  H->y[1] = H->y[2];
-
   H->y[2] =
     imu_iirf_coeff[i].d[0] * H->x[2]
     - imu_iirf_coeff[i].d[1] * H->x[1]
