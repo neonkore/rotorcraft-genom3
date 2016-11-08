@@ -145,7 +145,7 @@ component mikrokopter {
                              inout sensor_time, out rotors_state,
                              out imu, out rotors, out propeller_measure,
                              out battery)
-      yield poll;
+      yield poll, recv;
 
     codel<stop> mk_comm_stop(inout conn)
       yield ether;

@@ -134,13 +134,15 @@ mk_comm_recv(mikrokopter_conn_s **conn,
              const mikrokopter_propeller_measure *propeller_measure,
              mikrokopter_ids_battery_s *battery, genom_context self)
 {
-  int i;
+  int i, more;
   uint8_t *msg, len;
   int16_t v16;
   uint16_t u16;
 
+  more = 0;
   for(i = 0; i < mk_channels(); i++) {
-    while(mk_recv_msg(&(*conn)->chan[i], false) == 1) {
+    if (mk_recv_msg(&(*conn)->chan[i], false) == 1) {
+      more = 1;
       msg = (*conn)->chan[i].msg;
       len = (*conn)->chan[i].len;
 
@@ -270,7 +272,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
     }
   }
 
-  return mikrokopter_poll;
+  return more ? mikrokopter_recv : mikrokopter_poll;
 }
 
 
