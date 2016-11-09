@@ -87,6 +87,12 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
 
   ids->imu_calibration_updated = true;
 
+  ids->imu_filter.gain = 0.05;
+  ids->imu_filter.Q = 5;
+  mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
+                   ids->imu_filter.gain, ids->imu_filter.Q, 15, 143);
+  Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
+
   ids->rotors_state._length = 0;
   for(i = 0; i < ids->rotors_state._maximum; i++) {
     ids->rotors_state._buffer[i].emerg = false;
@@ -124,9 +130,6 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
   imu_data->vel_cov._present = false;
   imu_data->acc._present = false;
   imu_data->acc_cov._present = false;
-
-  mk_imu_iirf_init(1000. / mikrokopter_control_period_ms, 0.05, 5, 15, 143);
-  Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
 
   return mikrokopter_main;
 }

@@ -97,6 +97,23 @@ mk_set_imu_calibration(bool *imu_calibration_updated,
 }
 
 
+/* --- Attribute set_imu_filter ----------------------------------------- */
+
+/** Validation codel mk_set_imu_filter of attribute set_imu_filter.
+ *
+ * Returns genom_ok.
+ * Throws .
+ */
+genom_event
+mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
+                  genom_context self)
+{
+  mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
+                   imu_filter->gain, imu_filter->Q, 15, 143);
+  return genom_ok;
+}
+
+
 /* --- Function disable_motor ------------------------------------------- */
 
 /** Codel mk_disable_motor of function disable_motor.

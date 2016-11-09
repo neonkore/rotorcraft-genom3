@@ -76,12 +76,16 @@ component mikrokopter {
       double level;
     } battery;
 
-    /* imu calibration */
+    /* imu calibration & filtering */
     struct imu_calibration_s {
       double gscale[9], gbias[3], gstddev[3];
       double ascale[9], abias[3], astddev[3];
     } imu_calibration;
     boolean imu_calibration_updated;
+
+    struct imu_filter_s {
+      double gain, Q;
+    } imu_filter;
 
     /* rotors state */
     sequence<rotor_state_s, or_rotorcraft::max_rotors> rotors_state;
@@ -107,6 +111,11 @@ component mikrokopter {
   attribute get_imu_calibration(out imu_calibration);
   attribute set_imu_calibration(in imu_calibration) {
     validate mk_set_imu_calibration(out imu_calibration_updated);
+  };
+
+  attribute get_imu_filter(out imu_filter);
+  attribute set_imu_filter(in imu_filter) {
+    validate mk_set_imu_filter(local in imu_filter);
   };
 
   attribute set_ramp(in servo.ramp);
