@@ -121,7 +121,7 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
 /** Codel mk_comm_recv of task comm.
  *
  * Triggered by mikrokopter_recv.
- * Yields to mikrokopter_poll.
+ * Yields to mikrokopter_poll, mikrokopter_recv.
  * Throws mikrokopter_e_sys.
  */
 genom_event
