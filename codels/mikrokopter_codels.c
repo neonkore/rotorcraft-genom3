@@ -121,18 +121,22 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
  * Returns genom_ok.
  */
 genom_event
-mk_disable_motor(uint16_t motor,
+mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
                  sequence8_mikrokopter_rotor_state_s *rotors_state,
                  genom_context self)
 {
+  uint8_t id;
   if (motor < 1 || motor > rotors_state->_maximum)
     return mikrokopter_e_range(self);
 
   if (motor > rotors_state->_length) rotors_state->_length = motor;
-  rotors_state->_buffer[motor-1].emerg = false;
-  rotors_state->_buffer[motor-1].spinning = false;
-  rotors_state->_buffer[motor-1].starting = false;
-  rotors_state->_buffer[motor-1].disabled = true;
+  id = motor - 1;
+  rotors_state->_buffer[id].emerg = false;
+  rotors_state->_buffer[id].spinning = false;
+  rotors_state->_buffer[id].starting = false;
+  rotors_state->_buffer[id].disabled = true;
+  if (conn) mk_send_msg(&conn->chan[0], "x%1", id+1);
+
   return genom_ok;
 }
 
@@ -144,18 +148,33 @@ mk_disable_motor(uint16_t motor,
  * Returns genom_ok.
  */
 genom_event
-mk_enable_motor(uint16_t motor,
+mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
                 sequence8_mikrokopter_rotor_state_s *rotors_state,
                 genom_context self)
 {
+  uint8_t id;
   if (motor < 1 || motor > rotors_state->_maximum)
     return mikrokopter_e_range(self);
 
   if (motor > rotors_state->_length) rotors_state->_length = motor;
-  rotors_state->_buffer[motor-1].emerg = false;
-  rotors_state->_buffer[motor-1].spinning = false;
-  rotors_state->_buffer[motor-1].starting = false;
-  rotors_state->_buffer[motor-1].disabled = false;
+  id = motor - 1;
+  rotors_state->_buffer[id].emerg = false;
+  rotors_state->_buffer[id].spinning = false;
+  rotors_state->_buffer[id].starting = false;
+  rotors_state->_buffer[id].disabled = false;
+
+  if (conn) {
+    int i;
+    for(i = 0; i < rotors_state->_length; i++) {
+      if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
+        continue;
+      if (!rotors_state->_buffer[i].spinning) continue;
+
+      mk_send_msg(&conn->chan[0], "g%1", id+1);
+      break;
+    }
+  }
+
   return genom_ok;
 }
 

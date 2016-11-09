@@ -468,14 +468,15 @@ mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
 
   if (!conn) return mikrokopter_e_connection(self);
   for(i = 0; i < rotors_state->_length; i++) {
-    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
-      continue;
-    if (rotors_state->_buffer[i].spinning)
-      return mikrokopter_e_started(self);
+    if (rotors_state->_buffer[i].disabled) continue;
+    if (rotors_state->_buffer[i].spinning) return mikrokopter_e_started(self);
   }
 
   *state = 0;
-  mk_send_msg(&conn->chan[0], "g");
+  for(i = 0; i < rotors_state->_length; i++) {
+    if (rotors_state->_buffer[i].disabled) continue;
+    mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
+  }
   return mikrokopter_monitor;
 }
 
@@ -506,7 +507,11 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
 
       continue;
     }
-    if (rotors_state->_buffer[i].disabled) continue;
+    if (rotors_state->_buffer[i].disabled) {
+      if (rotors_state->_buffer[i].starting)
+        return mikrokopter_pause_monitor;
+      continue;
+    }
 
     if (rotors_state->_buffer[i].starting) *state |= 1 << i;
 

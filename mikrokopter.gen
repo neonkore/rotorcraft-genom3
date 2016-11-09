@@ -200,12 +200,12 @@ component mikrokopter {
 
   function disable_motor(in unsigned short motor) {
     doc		"Disable checking a motor status when it is disconnected";
-    codel mk_disable_motor(in motor, out rotors_state);
+    codel mk_disable_motor(in motor, in conn, out rotors_state);
   };
 
   function enable_motor(in unsigned short motor) {
     doc		"Disable checking a motor status when it is disconnected";
-    codel mk_enable_motor(in motor, out rotors_state);
+    codel mk_enable_motor(in motor, in conn, out rotors_state);
   };
 
 
