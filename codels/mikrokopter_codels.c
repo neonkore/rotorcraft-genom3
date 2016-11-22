@@ -203,7 +203,7 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
     if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
       continue;
 
-    if (!rotors_state->_buffer[i].spinning) {
+    if (rotors_state->_buffer[i].emerg) {
       e.id = 1 + i;
       return mikrokopter_e_rotor_failure(&e, self);
     }
