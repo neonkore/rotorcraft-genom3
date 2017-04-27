@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 LAAS/CNRS
+ * Copyright (c) 2015-2017 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -54,6 +54,7 @@ mk_open_tty(const char *device, uint32_t speed)
     case 57600:		baud = B57600; break;
     case 115200:	baud = B115200; break;
     case 500000:	baud = B500000; break;
+    case 2000000:	baud = B2000000; break;
 
     default: errno = EINVAL; return -1;
   }
@@ -227,7 +228,8 @@ mk_send_msg(const struct mk_channel_s *chan, const char *fmt, ...)
   va_start(ap, fmt);
   *w++ = '^';
   while((c = *fmt++)) {
-    while (w - buf > sizeof(buf)-8 /* 8 = worst case (4 bytes escaped) */) {
+    while ((unsigned)(w - buf) > sizeof(buf)-8 /* 8 = worst case (4 bytes
+                                                * escaped) */) {
       do {
         s = write(chan->fd, buf, w - buf);
       } while (s < 0 && errno == EINTR);

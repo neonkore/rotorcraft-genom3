@@ -1,5 +1,5 @@
 /*/
- * Copyright (c) 2015-2016 LAAS/CNRS
+ * Copyright (c) 2015-2017 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -278,7 +278,7 @@ component mikrokopter {
     codel<start> mk_servo_start(out scale)
       yield main;
     codel<main> mk_servo_main(in conn, in rotors_state, out rotors_wd,
-                              in propeller_input, in servo, inout scale, in imu)
+                              in propeller_input, in servo, inout scale)
       yield pause::main, stop;
 
     codel<stop> mk_servo_stop(in conn)

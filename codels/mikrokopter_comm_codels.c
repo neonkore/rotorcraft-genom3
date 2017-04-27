@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 LAAS/CNRS
+ * Copyright (c) 2015-2017 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -48,9 +48,9 @@ static or_time_ts	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_comm_start(mikrokopter_conn_s **conn, genom_context self)
+mk_comm_start(mikrokopter_conn_s **conn, const genom_context self)
 {
-  int i;
+  size_t i;
 
   *conn = malloc(sizeof(**conn));
   if (!*conn) return mk_e_sys_error(NULL, self);
@@ -71,7 +71,7 @@ mk_comm_start(mikrokopter_conn_s **conn, genom_context self)
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_comm_poll(const mikrokopter_conn_s *conn, genom_context self)
+mk_comm_poll(const mikrokopter_conn_s *conn, const genom_context self)
 {
   int s;
 
@@ -98,7 +98,8 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
                const mikrokopter_imu *imu,
                const mikrokopter_rotors *rotors,
                const mikrokopter_propeller_measure *propeller_measure,
-               mikrokopter_ids_battery_s *battery, genom_context self)
+               mikrokopter_ids_battery_s *battery,
+               const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
   mikrokopter_rotors_s *rdata = rotors->data(self);
@@ -132,9 +133,11 @@ mk_comm_recv(mikrokopter_conn_s **conn,
              const mikrokopter_imu *imu,
              const mikrokopter_rotors *rotors,
              const mikrokopter_propeller_measure *propeller_measure,
-             mikrokopter_ids_battery_s *battery, genom_context self)
+             mikrokopter_ids_battery_s *battery,
+             const genom_context self)
 {
-  int i, more;
+  int more;
+  size_t i;
   uint8_t *msg, len;
   int16_t v16;
   uint16_t u16;
@@ -283,7 +286,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_comm_stop(mikrokopter_conn_s **conn, genom_context self)
+mk_comm_stop(mikrokopter_conn_s **conn, const genom_context self)
 {
   if (!*conn) return mikrokopter_ether;
 
@@ -309,12 +312,12 @@ genom_event
 mk_connect_start(const char serial[2][64], uint32_t baud,
                  mikrokopter_conn_s **conn,
                  mikrokopter_ids_sensor_time_s *sensor_time,
-                 genom_context self)
+                 const genom_context self)
 {
   static const char magic[] = "[?]mkfl1.7*";
 
-  speed_t s;
-  int i, c;
+  size_t i;
+  int c, s;
 
   for(i = 0; i < mk_channels(); i++) {
     if ((*conn)->chan[i].fd >= 0) {
@@ -387,9 +390,10 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_disconnect_start(mikrokopter_conn_s **conn, genom_context self)
+mk_disconnect_start(mikrokopter_conn_s **conn,
+                    const genom_context self)
 {
-  int i;
+  size_t i;
 
   mk_send_msg(&(*conn)->chan[0], "x");
   mk_set_sensor_rate(
@@ -418,9 +422,12 @@ mk_disconnect_start(mikrokopter_conn_s **conn, genom_context self)
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_monitor_check(const mikrokopter_conn_s *conn, genom_context self)
+mk_monitor_check(const mikrokopter_conn_s *conn,
+                 const genom_context self)
 {
-  int i;
+  size_t i;
+
+  (void)self;
 
   for(i = 0; i < mk_channels(); i++)
     if (conn->chan[i].fd >= 0) return mikrokopter_pause_sleep;

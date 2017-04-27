@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 LAAS/CNRS
+ * Copyright (c) 2015-2017 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -142,7 +142,7 @@ mk_calibration_collect(or_pose_estimator_state *imu_data, int32_t *still)
     m = accvar.maxCoeff();
     if (raw_data->accvarth > m) raw_data->accvarth = m;
 
-    if ((accvar.array() < 2 * raw_data->accvarth).all()) {
+    if ((accvar.array() < 3 * raw_data->accvarth).all()) {
       if (!raw_data->nstill)
         *still = 0;
 

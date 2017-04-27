@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2016 LAAS/CNRS
+ * Copyright (c) 2015-2017 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -38,7 +38,7 @@ genom_event
 mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
                    const mikrokopter_conn_s *conn,
                    mikrokopter_ids_sensor_time_s *sensor_time,
-                   genom_context self)
+                   const genom_context self)
 {
   int mainc, auxc;
   uint32_t p;
@@ -90,8 +90,10 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
  */
 genom_event
 mk_set_imu_calibration(bool *imu_calibration_updated,
-                       genom_context self)
+                       const genom_context self)
 {
+  (void)self;
+
   *imu_calibration_updated = true;
   return genom_ok;
 }
@@ -106,8 +108,10 @@ mk_set_imu_calibration(bool *imu_calibration_updated,
  */
 genom_event
 mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
-                  genom_context self)
+                  const genom_context self)
 {
+  (void)self;
+
   mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
                    imu_filter->gain, imu_filter->Q, 15, 143);
   return genom_ok;
@@ -123,7 +127,7 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
 genom_event
 mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
                  sequence8_mikrokopter_rotor_state_s *rotors_state,
-                 genom_context self)
+                 const genom_context self)
 {
   uint8_t id;
   if (motor < 1 || motor > rotors_state->_maximum)
@@ -150,7 +154,7 @@ mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
 genom_event
 mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
                 sequence8_mikrokopter_rotor_state_s *rotors_state,
-                genom_context self)
+                const genom_context self)
 {
   uint8_t id;
   if (motor < 1 || motor > rotors_state->_maximum)
@@ -164,7 +168,7 @@ mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
   rotors_state->_buffer[id].disabled = false;
 
   if (conn) {
-    int i;
+    size_t i;
     for(i = 0; i < rotors_state->_length; i++) {
       if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
         continue;
@@ -191,12 +195,11 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
                 const sequence8_mikrokopter_rotor_state_s *rotors_state,
                 double rotors_wd[8],
                 const or_rotorcraft_propeller_velocity *w,
-                genom_context self)
+                const genom_context self)
 {
   mikrokopter_e_rotor_failure_detail e;
   int16_t p[or_rotorcraft_max_rotors];
-  size_t l;
-  int i;
+  size_t i, l;
 
   /* check rotors status */
   for(i = 0; i < rotors_state->_length; i++) {
@@ -239,7 +242,7 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_log_start(const char path[64], mikrokopter_log_s **log,
-             genom_context self)
+             const genom_context self)
 {
   FILE *f;
 
@@ -269,8 +272,10 @@ mk_log_start(const char path[64], mikrokopter_log_s **log,
  * Returns genom_ok.
  */
 genom_event
-mk_log_stop(mikrokopter_log_s **log, genom_context self)
+mk_log_stop(mikrokopter_log_s **log, const genom_context self)
 {
+  (void)self;
+
   if (!*log) return genom_ok;
 
   fclose((*log)->logf);
