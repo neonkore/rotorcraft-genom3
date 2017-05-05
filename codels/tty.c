@@ -27,6 +27,11 @@
 #include <termios.h>
 #include <unistd.h>
 
+#ifdef HAVE_LOW_LATENCY_IOCTL
+# include <sys/ioctl.h>
+# include <linux/serial.h> /* for TIOCGSERIAL and ASYNC_LOW_LATENCY */
+#endif
+
 #include "codels.h"
 
 
@@ -84,6 +89,31 @@ mk_open_tty(const char *device, uint32_t speed)
 
   /* discard any pending data */
   tcflush(fd, TCIOFLUSH);
+
+#ifdef HAVE_LOW_LATENCY_IOCTL
+  /* Linux: enable low latency mode
+   * see /sys/bus/usb-serial/devices/.../latency_timer
+   */
+  {
+    struct serial_struct s;
+    int e;
+
+    if (ioctl(fd, TIOCGSERIAL, &s)) {
+      e = errno;
+      close(fd);
+      return e;
+    }
+
+    if (!(s.flags & ASYNC_LOW_LATENCY)) {
+      s.flags |= ASYNC_LOW_LATENCY;
+      if (ioctl(fd, TIOCSSERIAL, &s)) {
+        e = errno;
+        close(fd);
+        return e;
+      }
+    }
+  }
+#endif
 
   return fd;
 }

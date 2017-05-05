@@ -46,6 +46,26 @@ AG_OPT_TEMPLATES([$GENOM3 ],
     [$srcdir/mikrokopter.gen])
 
 
+# check for TIOCGSERIAL, TIOCSSERIAL
+AC_CHECK_HEADERS([sys/ioctl.h linux/serial.h])
+if test "$ac_cv_header_sys_ioctl_h$ac_cv_header_linux_serial_h" = yesyes; then
+  AC_MSG_CHECKING(ASYNC_LOW_LATENCY)
+  AC_EGREP_CPP([yes],
+[#include <sys/ioctl.h>
+#include <linux/serial.h>
+
+#ifdef TIOCGSERIAL
+#ifdef TIOCSSERIAL
+#ifdef ASYNC_LOW_LATENCY
+       yes
+#endif
+#endif
+#endif
+], [AC_MSG_RESULT(yes)
+   AC_DEFINE([HAVE_LOW_LATENCY_IOCTL], [], [FTDI low latency ioctl])],
+   AC_MSG_RESULT(no))
+fi
+
 dnl Output
 AC_CONFIG_FILES([
 	mikrokopter-genom3.pc
