@@ -36,9 +36,8 @@ static struct mk_iir_filter Hax, Hay, Haz, Hwx, Hwy, Hwz;
  * Yields to mikrokopter_main.
  */
 genom_event
-mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
-             const mikrokopter_rotor_measure *rotor_measure,
-             const mikrokopter_imu *imu, const genom_context self)
+mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
+             const genom_context self)
 {
   genom_event e;
   size_t i;
@@ -50,41 +49,27 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
     &ids->sensor_time.rate, NULL, &ids->sensor_time, self);
   if (e) return e;
 
-  ids->battery.alarm = 13.7;
+  ids->battery.min = 14.0;
+  ids->battery.max = 16.8;
   ids->battery.level = 0.;
 
-  ids->imu_calibration.gscale[0] = 1.;
-  ids->imu_calibration.gscale[1] = 0.;
-  ids->imu_calibration.gscale[2] = 0.;
-  ids->imu_calibration.gscale[3] = 0.;
-  ids->imu_calibration.gscale[4] = 1.;
-  ids->imu_calibration.gscale[5] = 0.;
-  ids->imu_calibration.gscale[6] = 0.;
-  ids->imu_calibration.gscale[7] = 0.;
-  ids->imu_calibration.gscale[8] = 1.;
-  ids->imu_calibration.gbias[0] = 0.;
-  ids->imu_calibration.gbias[1] = 0.;
-  ids->imu_calibration.gbias[2] = 0.;
-  ids->imu_calibration.gstddev[0] = 1e-2;
-  ids->imu_calibration.gstddev[1] = 1e-2;
-  ids->imu_calibration.gstddev[2] = 1e-2;
+  ids->imu_calibration = (mikrokopter_ids_imu_calibration_s){
+    .gscale = {
+      1., 0., 0.,
+      0., 1., 0.,
+      0., 0., 1.
+    },
+    .gbias = { 0., 0., 0. },
+    .gstddev = { 1e-2, 1e-2, 1e-2 },
 
-  ids->imu_calibration.ascale[0] = 1.;
-  ids->imu_calibration.ascale[1] = 0.;
-  ids->imu_calibration.ascale[2] = 0.;
-  ids->imu_calibration.ascale[3] = 0.;
-  ids->imu_calibration.ascale[4] = 1.;
-  ids->imu_calibration.ascale[5] = 0.;
-  ids->imu_calibration.ascale[6] = 0.;
-  ids->imu_calibration.ascale[7] = 0.;
-  ids->imu_calibration.ascale[8] = 1.;
-  ids->imu_calibration.abias[0] = 0.;
-  ids->imu_calibration.abias[1] = 0.;
-  ids->imu_calibration.abias[2] = 0.;
-  ids->imu_calibration.astddev[0] = 5e-2;
-  ids->imu_calibration.astddev[1] = 5e-2;
-  ids->imu_calibration.astddev[2] = 5e-2;
-
+    .ascale = {
+      1., 0., 0.,
+      0., 1., 0.,
+      0., 0., 1.
+    },
+    .abias = { 0., 0., 0. },
+    .astddev = { 5e-2, 5e-2, 5e-2 },
+  };
   ids->imu_calibration_updated = true;
 
   ids->imu_filter.gain = 0.05;
@@ -93,44 +78,28 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
                    ids->imu_filter.gain, ids->imu_filter.Q, 15, 143);
   Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
 
-  ids->rotors_state._length = 0;
-  for(i = 0; i < ids->rotors_state._maximum; i++) {
-    ids->rotors_state._buffer[i].emerg = false;
-    ids->rotors_state._buffer[i].spinning = false;
-    ids->rotors_state._buffer[i].starting = false;
-    ids->rotors_state._buffer[i].disabled = false;
-  }
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    ids->rotors_wd[i] = 0.;
+    ids->rotor_state[i] = (or_rotorcraft_rotor_state){
+      .ts = { 0, 0 },
+      .emerg = false, .spinning = false, .starting = false, .disabled = true,
+      .velocity = nan(""), .throttle = nan(""), .consumption = nan(""),
+      .energy_level = nan("")
+    };
+    ids->rotor_wd[i] = 0.;
   }
 
   ids->servo.ramp = 3.;
 
-  rotors->data(self)->_length = 0;
-  for(i = 0; i < rotors->data(self)->_maximum; i++) {
-    rotors->data(self)->_buffer[i].state.emerg = false;
-    rotors->data(self)->_buffer[i].state.spinning = false;
-    rotors->data(self)->_buffer[i].state.starting = false;
-    rotors->data(self)->_buffer[i].state.disabled = false;
-  }
-  rotor_measure->data(self)->rotor._length = 0;
-  for(i = 0; i < rotor_measure->data(self)->rotor._maximum; i++) {
-    rotor_measure->data(self)->rotor._buffer[i] =
-      (or_rotorcraft_rotor_state){
-      .emerg = false, .spinning = false, .starting = false, .disabled = true,
-      .velocity = 0., .throttle = 0., .consumption = 0., .energy_level = 0.
-    };
-  }
-
-  or_pose_estimator_state *imu_data = imu->data(self);
-  imu_data->ts = (or_time_ts){ 0, 0 };
-  imu_data->intrinsic = true;
-  imu_data->pos._present = false;
-  imu_data->pos_cov._present = false;
-  imu_data->vel._present = false;
-  imu_data->vel_cov._present = false;
-  imu_data->acc._present = false;
-  imu_data->acc_cov._present = false;
+  *imu->data(self) = (or_pose_estimator_state){
+    .ts = { 0, 0 },
+    .intrinsic = true,
+    .pos._present = false,
+    .pos_cov._present = false,
+    .vel._present = false,
+    .vel_cov._present = false,
+    .acc._present = false,
+    .acc_cov._present = false
+  };
 
   return mikrokopter_main;
 }
@@ -145,17 +114,18 @@ genom_event
 mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_battery_s *battery,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
-             const double rotors_wd[8], bool *imu_calibration_updated,
+             const or_rotorcraft_rotor_state rotor_state[8],
+             const double rotor_wd[8], bool *imu_calibration_updated,
              const mikrokopter_log_s *log,
-             const mikrokopter_rotors *rotors,
              const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
+  ssize_t i;
 
   /* battery level */
   if (conn && conn->chan[0].fd >= 0) {
-    if (battery->level > 0. && battery->level < battery->alarm) {
+    if (battery->level > 0. && battery->level < battery->min) {
       static int cnt;
 
       if (!cnt) mk_send_msg(&conn->chan[0], "~%2", 440);
@@ -207,11 +177,11 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* filter IMU */
   {
-    int i, c;
+    int c;
     double favg;
 
     for(i = c = 0; i < or_rotorcraft_max_rotors; i++) {
-      if (rotors_wd[i] > 15.) { c++; favg += rotors_wd[i]; }
+      if (rotor_wd[i] > 15.) { c++; favg += rotor_wd[i]; }
     }
 
     if (c) {
@@ -229,9 +199,14 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
 
   /* publish */
-  rotors->write(self);
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    rotor_measure->data(self)->rotor._buffer[i] = rotor_state[i];
+    if (!rotor_state[i].disabled)
+      rotor_measure->data(self)->rotor._length = i + 1;
+  }
   rotor_measure->write(self);
   imu->write(self);
+
 
   /* log */
   if (log) {
@@ -245,8 +220,8 @@ mk_main_perm(const mikrokopter_conn_s *conn,
       idata->vel._value.wx, idata->vel._value.wy, idata->vel._value.wz,
       idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,
 
-      rotors_wd[0], rotors_wd[1], rotors_wd[2], rotors_wd[3],
-      rotors_wd[4], rotors_wd[5], rotors_wd[6], rotors_wd[7],
+      rotor_wd[0], rotor_wd[1], rotor_wd[2], rotor_wd[3],
+      rotor_wd[4], rotor_wd[5], rotor_wd[6], rotor_wd[7],
 
       rdata[0].velocity, rdata[1].velocity, rdata[2].velocity,
       rdata[3].velocity, rdata[4].velocity, rdata[5].velocity,
@@ -467,20 +442,20 @@ mk_set_zero(double accum[3], double gycum[3],
  */
 genom_event
 mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
-               const sequence8_mikrokopter_rotor_state_s *rotors_state,
+               const or_rotorcraft_rotor_state rotor_state[8],
                const genom_context self)
 {
   size_t i;
 
   if (!conn) return mikrokopter_e_connection(self);
-  for(i = 0; i < rotors_state->_length; i++) {
-    if (rotors_state->_buffer[i].disabled) continue;
-    if (rotors_state->_buffer[i].spinning) return mikrokopter_e_started(self);
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_state[i].disabled) continue;
+    if (rotor_state[i].spinning) return mikrokopter_e_started(self);
   }
 
   *state = 0;
-  for(i = 0; i < rotors_state->_length; i++) {
-    if (rotors_state->_buffer[i].disabled) continue;
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_state[i].disabled) continue;
     mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
   }
   return mikrokopter_monitor;
@@ -496,33 +471,31 @@ mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
  */
 genom_event
 mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
-                 const sequence8_mikrokopter_rotor_state_s *rotors_state,
+                 const or_rotorcraft_rotor_state rotor_state[8],
                  const genom_context self)
 {
   mikrokopter_e_rotor_failure_detail e;
   mikrokopter_e_rotor_not_disabled_detail d;
   size_t i;
 
-  for(i = 0; i < rotors_state->_length; i++) {
-    if (rotors_state->_buffer[i].spinning) {
-      if (rotors_state->_buffer[i].disabled) {
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_state[i].disabled) {
+      if (rotor_state[i].spinning) {
         mk_send_msg(&conn->chan[0], "x");
         d.id = 1 + i;
         return mikrokopter_e_rotor_not_disabled(&d, self);
       }
 
-      continue;
-    }
-    if (rotors_state->_buffer[i].disabled) {
-      if (rotors_state->_buffer[i].starting)
+      if (rotor_state[i].starting)
         return mikrokopter_pause_monitor;
       continue;
     }
 
-    if (rotors_state->_buffer[i].starting) *state |= 1 << i;
+    if (rotor_state[i].starting) *state |= 1 << i;
+    if (rotor_state[i].spinning) continue;
 
-    if ((!rotors_state->_buffer[i].starting && (*state & (1 << i))) ||
-        rotors_state->_buffer[i].emerg) {
+    if ((!rotor_state[i].starting && (*state & (1 << i))) ||
+        rotor_state[i].emerg) {
       mk_send_msg(&conn->chan[0], "x");
       e.id = 1 + i;
       return mikrokopter_e_rotor_failure(&e, self);
@@ -544,12 +517,12 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
  */
 genom_event
 mk_start_stop(const mikrokopter_conn_s *conn,
-              const sequence8_mikrokopter_rotor_state_s *rotors_state,
+              const or_rotorcraft_rotor_state rotor_state[8],
               const genom_context self)
 {
   genom_event e;
 
-  e = mk_stop(conn, rotors_state, self);
+  e = mk_stop(conn, rotor_state, self);
   if (e == mikrokopter_ether) return mikrokopter_ether;
 
   return mikrokopter_pause_stop;
@@ -583,8 +556,8 @@ mk_servo_start(double *scale, const genom_context self)
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
-              const sequence8_mikrokopter_rotor_state_s *rotors_state,
-              double rotors_wd[8],
+              const or_rotorcraft_rotor_state rotor_state[8],
+              double rotor_wd[8],
               const mikrokopter_rotor_input *rotor_input,
               const mikrokopter_ids_servo_s *servo, double *scale,
               const genom_context self)
@@ -619,7 +592,7 @@ mk_servo_main(const mikrokopter_conn_s *conn,
 
   /* send */
   e = mk_set_velocity(
-    conn, rotors_state, rotors_wd, &input_data->desired, self);
+    conn, rotor_state, rotor_wd, &input_data->desired, self);
   if (e) return e;
 
   return mikrokopter_pause_main;
@@ -657,7 +630,7 @@ mk_servo_stop(const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_stop(const mikrokopter_conn_s *conn,
-        const sequence8_mikrokopter_rotor_state_s *rotors_state,
+        const or_rotorcraft_rotor_state rotor_state[8],
         const genom_context self)
 {
   size_t i;
@@ -665,11 +638,9 @@ mk_stop(const mikrokopter_conn_s *conn,
   if (!conn) return mikrokopter_e_connection(self);
   mk_send_msg(&conn->chan[0], "x");
 
-  for(i = 0; i < rotors_state->_length; i++) {
-    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
-      continue;
-    if (rotors_state->_buffer[i].spinning)
-      return mikrokopter_pause_start;
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_state[i].disabled) continue;
+    if (rotor_state[i].spinning) return mikrokopter_pause_start;
   }
 
   return mikrokopter_ether;

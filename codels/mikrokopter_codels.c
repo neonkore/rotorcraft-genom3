@@ -81,6 +81,23 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
 }
 
 
+/* --- Attribute set_battery_limits ------------------------------------- */
+
+/** Validation codel mk_set_battery_limits of attribute set_battery_limits.
+ *
+ * Returns genom_ok.
+ * Throws mikrokopter_e_range.
+ */
+genom_event
+mk_set_battery_limits(double min, double max,
+                      const genom_context self)
+{
+  if (min < 0.) return mikrokopter_e_range(self);
+  if (min >= max - 1e-2) return mikrokopter_e_range(self);
+  return genom_ok;
+}
+
+
 /* --- Attribute set_imu_calibration ------------------------------------ */
 
 /** Validation codel mk_set_imu_calibration of attribute set_imu_calibration.
@@ -126,20 +143,23 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
  */
 genom_event
 mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
-                 sequence8_mikrokopter_rotor_state_s *rotors_state,
+                 or_rotorcraft_rotor_state rotor_state[8],
                  const genom_context self)
 {
-  uint8_t id;
-  if (motor < 1 || motor > rotors_state->_maximum)
+  struct timeval tv;
+
+  if (motor < 1 || motor > or_rotorcraft_max_rotors)
     return mikrokopter_e_range(self);
 
-  if (motor > rotors_state->_length) rotors_state->_length = motor;
-  id = motor - 1;
-  rotors_state->_buffer[id].emerg = false;
-  rotors_state->_buffer[id].spinning = false;
-  rotors_state->_buffer[id].starting = false;
-  rotors_state->_buffer[id].disabled = true;
-  if (conn) mk_send_msg(&conn->chan[0], "x%1", id+1);
+  gettimeofday(&tv, NULL);
+  rotor_state[motor - 1] = (or_rotorcraft_rotor_state){
+    .ts = { .sec = tv.tv_sec, .nsec = tv.tv_usec * 1000 },
+    .emerg = false, .spinning = false, .starting = false, .disabled = true,
+    .velocity = nan(""), .throttle = nan(""), .consumption = nan(""),
+    .energy_level = nan("")
+  };
+
+  if (conn) mk_send_msg(&conn->chan[0], "x%1", (uint8_t){motor});
 
   return genom_ok;
 }
@@ -153,28 +173,27 @@ mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
-                sequence8_mikrokopter_rotor_state_s *rotors_state,
+                or_rotorcraft_rotor_state rotor_state[8],
                 const genom_context self)
 {
-  uint8_t id;
-  if (motor < 1 || motor > rotors_state->_maximum)
+  struct timeval tv;
+
+  if (motor < 1 || motor > or_rotorcraft_max_rotors)
     return mikrokopter_e_range(self);
 
-  if (motor > rotors_state->_length) rotors_state->_length = motor;
-  id = motor - 1;
-  rotors_state->_buffer[id].emerg = false;
-  rotors_state->_buffer[id].spinning = false;
-  rotors_state->_buffer[id].starting = false;
-  rotors_state->_buffer[id].disabled = false;
+  gettimeofday(&tv, NULL);
+  rotor_state[motor - 1] = (or_rotorcraft_rotor_state){
+    .ts = { .sec = tv.tv_sec, .nsec = tv.tv_usec * 1000 },
+    .emerg = false, .spinning = false, .starting = false, .disabled = false
+  };
 
   if (conn) {
     size_t i;
-    for(i = 0; i < rotors_state->_length; i++) {
-      if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
-        continue;
-      if (!rotors_state->_buffer[i].spinning) continue;
+    for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+      if (rotor_state[i].disabled) continue;
+      if (!rotor_state[i].spinning) continue;
 
-      mk_send_msg(&conn->chan[0], "g%1", id+1);
+      mk_send_msg(&conn->chan[0], "g%1", (uint8_t){motor});
       break;
     }
   }
@@ -192,9 +211,9 @@ mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_set_velocity(const mikrokopter_conn_s *conn,
-                const sequence8_mikrokopter_rotor_state_s *rotors_state,
-                double rotors_wd[8],
-                const or_rotorcraft_rotor_control *w,
+                const or_rotorcraft_rotor_state rotor_state[8],
+                double rotor_wd[8],
+                const or_rotorcraft_rotor_control *desired,
                 const genom_context self)
 {
   mikrokopter_e_rotor_failure_detail e;
@@ -202,29 +221,25 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
   size_t i, l;
 
   /* check rotors status */
-  for(i = 0; i < rotors_state->_length; i++) {
-    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
-      continue;
-
-    if (rotors_state->_buffer[i].emerg) {
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_state[i].disabled) continue;
+    if (rotor_state[i].emerg) {
       e.id = 1 + i;
       return mikrokopter_e_rotor_failure(&e, self);
     }
   }
 
   /* discard trailing nans */
-  l = w->_length;
-  while(isnan(w->_buffer[l-1])) l--;
+  l = desired->_length;
+  while(l && isnan(desired->_buffer[l-1])) l--;
+  if (l == 0) return genom_ok;
 
   /* rotational period */
   for(i = 0; i < l; i++) {
-    if (i < rotors_state->_length && rotors_state->_buffer[i].disabled)
-      rotors_wd[i] = 0.;
-    else
-      rotors_wd[i] = w->_buffer[i];
+    rotor_wd[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i];
 
-    p[i] = (fabs(rotors_wd[i]) < 1000000./65535.) ?
-      copysign(32767, rotors_wd[i]) : 1000000/2/rotors_wd[i];
+    p[i] = (fabs(rotor_wd[i]) < 1000000./65535.) ?
+      copysign(32767, rotor_wd[i]) : 1000000/2/rotor_wd[i];
   }
 
   /* send */

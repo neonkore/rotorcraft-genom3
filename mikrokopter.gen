@@ -20,7 +20,7 @@
 #include "or/robot/rotorcraft.gen"
 
 component mikrokopter {
-  version		"1.5";
+version		"1.5";
   email			"openrobots@laas.fr";
   lang			"c";
   require		"genom3 >= 2.99.26";
@@ -38,17 +38,6 @@ component mikrokopter {
   native conn_s;
   native log_s;
 
-  struct rotor_state_s {
-    boolean emerg, spinning, starting, disabled;
-  };
-  struct rotor_s {
-    rotor_state_s state;
-    double pwm;
-    double current;
-  };
-  typedef sequence<rotor_s, or_rotorcraft::max_rotors> rotors_s;
-
-  port out	rotors_s rotors;
   port out	or_pose_estimator::state imu;
 
 
@@ -72,7 +61,7 @@ component mikrokopter {
 
     /* battery data */
     struct battery_s {
-      double alarm;
+      double min, max;
       double level;
     } battery;
 
@@ -88,8 +77,8 @@ component mikrokopter {
     } imu_filter;
 
     /* rotors state */
-    sequence<rotor_state_s, or_rotorcraft::max_rotors> rotors_state;
-    double rotors_wd[or_rotorcraft::max_rotors];
+    or_rotorcraft::rotor_state rotor_state[or_rotorcraft::max_rotors];
+    double rotor_wd[or_rotorcraft::max_rotors];
 
     /* servo parameters */
     struct servo_s {
@@ -106,7 +95,11 @@ component mikrokopter {
   };
 
   attribute get_battery(out battery);
-  attribute set_battery_alarm(in battery.alarm);
+  attribute set_battery_limits(in battery.min, in battery.max) {
+    validate mk_set_battery_limits(in min, in max);
+
+    throw e_range;
+  };
 
   attribute get_imu_calibration(out imu_calibration);
   attribute set_imu_calibration(in imu_calibration) {
@@ -128,12 +121,12 @@ component mikrokopter {
   task main {
     period control_period_ms ms;
 
-    codel<start> mk_main_init(out ::ids,
-                              in rotors, in rotor_measure, in imu)
+    codel<start> mk_main_init(out ::ids, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
-                             in rotors_wd, inout imu_calibration_updated,
-                             in log, out rotors, out rotor_measure, out imu)
+                             in rotor_state, in rotor_wd,
+                             inout imu_calibration_updated,
+                             in log, out rotor_measure, out imu)
       yield pause::main;
 
     codel<stop> mk_main_stop(inout log)
@@ -147,13 +140,10 @@ component mikrokopter {
     async codel<poll> mk_comm_poll(in conn)
       yield nodata, recv;
     codel<nodata> mk_comm_nodata(inout conn, inout sensor_time,
-                                 out imu, out rotors, out rotor_measure,
-                                 out battery)
+                                 out imu, out battery)
       yield poll;
-    codel<recv> mk_comm_recv(inout conn, in imu_calibration,
-                             inout sensor_time, out rotors_state,
-                             out imu, out rotors, out rotor_measure,
-                             out battery)
+    codel<recv> mk_comm_recv(inout conn, in imu_calibration, inout sensor_time,
+                             out imu, out rotor_state, out battery)
       yield poll, recv;
 
     codel<stop> mk_comm_stop(inout conn)
@@ -200,12 +190,14 @@ component mikrokopter {
 
   function disable_motor(in unsigned short motor) {
     doc		"Disable checking a motor status when it is disconnected";
-    codel mk_disable_motor(in motor, in conn, out rotors_state);
+
+    codel mk_disable_motor(in motor, in conn, out rotor_state);
   };
 
   function enable_motor(in unsigned short motor) {
     doc		"Disable checking a motor status when it is disconnected";
-    codel mk_enable_motor(in motor, in conn, out rotors_state);
+
+    codel mk_enable_motor(in motor, in conn, out rotor_state);
   };
 
 
@@ -258,11 +250,11 @@ component mikrokopter {
 
     local unsigned short state;
 
-    codel<start> mk_start_start(in conn, out state, in rotors_state)
+    codel<start> mk_start_start(in conn, out state, in rotor_state)
       yield monitor;
-    codel<monitor> mk_start_monitor(in conn, inout state, in rotors_state)
+    codel<monitor> mk_start_monitor(in conn, inout state, in rotor_state)
       yield pause::monitor, ether;
-    codel<stop> mk_start_stop(in conn, in rotors_state)
+    codel<stop> mk_start_stop(in conn, in rotor_state)
       yield pause::stop, ether;
 
     interrupt start;
@@ -277,7 +269,7 @@ component mikrokopter {
 
     codel<start> mk_servo_start(out scale)
       yield main;
-    codel<main> mk_servo_main(in conn, in rotors_state, out rotors_wd,
+    codel<main> mk_servo_main(in conn, in rotor_state, out rotor_wd,
                               in rotor_input, in servo, inout scale)
       yield pause::main, stop;
 
@@ -288,10 +280,10 @@ component mikrokopter {
   };
 
   function set_velocity(
-       in or_rotorcraft::rotor_control w =: "Propeller velocities") {
+       in or_rotorcraft::rotor_control desired =: "Propeller velocities") {
     doc		"Set the given velocity once";
 
-    codel mk_set_velocity(in conn, in rotors_state, out rotors_wd, in w);
+    codel mk_set_velocity(in conn, in rotor_state, out rotor_wd, in desired);
 
     interrupt servo;
     throw e_connection, e_rotor_failure;
@@ -301,7 +293,7 @@ component mikrokopter {
     doc		"Stop all propellers";
     task	main;
 
-    codel<start> mk_stop(in conn, in rotors_state)
+    codel<start> mk_stop(in conn, in rotor_state)
       yield pause::start, ether;
 
     interrupt servo, start;
