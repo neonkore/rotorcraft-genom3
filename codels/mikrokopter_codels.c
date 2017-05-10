@@ -194,7 +194,7 @@ genom_event
 mk_set_velocity(const mikrokopter_conn_s *conn,
                 const sequence8_mikrokopter_rotor_state_s *rotors_state,
                 double rotors_wd[8],
-                const or_rotorcraft_propeller_velocity *w,
+                const or_rotorcraft_rotor_control *w,
                 const genom_context self)
 {
   mikrokopter_e_rotor_failure_detail e;

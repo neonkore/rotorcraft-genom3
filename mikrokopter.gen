@@ -14,7 +14,7 @@
  *
  *					Anthony Mallet on Fri Feb 13 2015
  */
-#pragma require "openrobots-idl >= 1.2"
+#pragma require "openrobots-idl >= 1.4"
 
 #include "or/pose/pose_estimator.gen"
 #include "or/robot/rotorcraft.gen"
@@ -129,11 +129,11 @@ component mikrokopter {
     period control_period_ms ms;
 
     codel<start> mk_main_init(out ::ids,
-                              in rotors, in propeller_measure, in imu)
+                              in rotors, in rotor_measure, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
                              in rotors_wd, inout imu_calibration_updated,
-                             in log, out rotors, out propeller_measure, out imu)
+                             in log, out rotors, out rotor_measure, out imu)
       yield pause::main;
 
     codel<stop> mk_main_stop(inout log)
@@ -147,12 +147,12 @@ component mikrokopter {
     async codel<poll> mk_comm_poll(in conn)
       yield nodata, recv;
     codel<nodata> mk_comm_nodata(inout conn, inout sensor_time,
-                                 out imu, out rotors, out propeller_measure,
+                                 out imu, out rotors, out rotor_measure,
                                  out battery)
       yield poll;
     codel<recv> mk_comm_recv(inout conn, in imu_calibration,
                              inout sensor_time, out rotors_state,
-                             out imu, out rotors, out propeller_measure,
+                             out imu, out rotors, out rotor_measure,
                              out battery)
       yield poll, recv;
 
@@ -278,7 +278,7 @@ component mikrokopter {
     codel<start> mk_servo_start(out scale)
       yield main;
     codel<main> mk_servo_main(in conn, in rotors_state, out rotors_wd,
-                              in propeller_input, in servo, inout scale)
+                              in rotor_input, in servo, inout scale)
       yield pause::main, stop;
 
     codel<stop> mk_servo_stop(in conn)
@@ -288,7 +288,7 @@ component mikrokopter {
   };
 
   function set_velocity(
-       in or_rotorcraft::propeller_velocity w =: "Propeller velocities") {
+       in or_rotorcraft::rotor_control w =: "Propeller velocities") {
     doc		"Set the given velocity once";
 
     codel mk_set_velocity(in conn, in rotors_state, out rotors_wd, in w);

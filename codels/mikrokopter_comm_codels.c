@@ -97,19 +97,19 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
                mikrokopter_ids_sensor_time_s *sensor_time,
                const mikrokopter_imu *imu,
                const mikrokopter_rotors *rotors,
-               const mikrokopter_propeller_measure *propeller_measure,
+               const mikrokopter_rotor_measure *rotor_measure,
                mikrokopter_ids_battery_s *battery,
                const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
   mikrokopter_rotors_s *rdata = rotors->data(self);
-  or_rotorcraft_input *pdata = propeller_measure->data(self);
+  or_rotorcraft_output *pdata = rotor_measure->data(self);
 
   /* reset exported data in case of timeout */
   idata->vel._present = false;
   idata->acc._present = false;
   rdata->_length = 0;
-  pdata->w._length = 0;
+  pdata->rotor._length = 0;
   battery->level = 0.;
 
   if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
@@ -132,7 +132,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
              sequence8_mikrokopter_rotor_state_s *rotors_state,
              const mikrokopter_imu *imu,
              const mikrokopter_rotors *rotors,
-             const mikrokopter_propeller_measure *propeller_measure,
+             const mikrokopter_rotor_measure *rotor_measure,
              mikrokopter_ids_battery_s *battery,
              const genom_context self)
 {
@@ -224,17 +224,17 @@ mk_comm_recv(mikrokopter_conn_s **conn,
         case 'M': /* motor data */
           if (len == 9) {
             mikrokopter_rotors_s *rdata = rotors->data(self);
-            or_rotorcraft_input *pdata = propeller_measure->data(self);
+            or_rotorcraft_output *pdata = rotor_measure->data(self);
 
             uint8_t seq __attribute__((unused)) = *msg++;
             uint8_t state = *msg++;
             uint8_t id = state & 0xf;
 
-            if (id < 1 || id > rdata->_maximum || id > pdata->w._maximum ||
+            if (id < 1 || id > rdata->_maximum || id > pdata->rotor._maximum ||
                 id > rotors_state->_maximum)
               break;
             if (id > rdata->_length) rdata->_length = id;
-            if (id > pdata->w._length) pdata->w._length = id;
+            if (id > pdata->rotor._length) pdata->rotor._length = id;
             if (id > rotors_state->_length) rotors_state->_length = id;
             id--;
 
@@ -248,9 +248,9 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
             if (rdata->_buffer[id].state.spinning)
-              pdata->w._buffer[id] = v16 ? 1e6/2/v16 : 0.;
+              pdata->rotor._buffer[id].velocity = v16 ? 1e6/2/v16 : 0.;
             else
-              pdata->w._buffer[id] = 0.;
+              pdata->rotor._buffer[id].velocity = 0.;
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);

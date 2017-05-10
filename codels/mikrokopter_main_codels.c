@@ -37,7 +37,7 @@ static struct mk_iir_filter Hax, Hay, Haz, Hwx, Hwy, Hwz;
  */
 genom_event
 mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
-             const mikrokopter_propeller_measure *propeller_measure,
+             const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
 {
   genom_event e;
@@ -113,12 +113,13 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_rotors *rotors,
     rotors->data(self)->_buffer[i].state.starting = false;
     rotors->data(self)->_buffer[i].state.disabled = false;
   }
-  propeller_measure->data(self)->w._length = 0;
-  for(i = 0; i < propeller_measure->data(self)->w._maximum; i++) {
-    propeller_measure->data(self)->w._buffer[i] = 0.;
-    propeller_measure->data(self)->w._buffer[i] = 0.;
-    propeller_measure->data(self)->w._buffer[i] = 0.;
-    propeller_measure->data(self)->w._buffer[i] = 0.;
+  rotor_measure->data(self)->rotor._length = 0;
+  for(i = 0; i < rotor_measure->data(self)->rotor._maximum; i++) {
+    rotor_measure->data(self)->rotor._buffer[i] =
+      (or_rotorcraft_rotor_state){
+      .emerg = false, .spinning = false, .starting = false, .disabled = true,
+      .velocity = 0., .throttle = 0., .consumption = 0., .energy_level = 0.
+    };
   }
 
   or_pose_estimator_state *imu_data = imu->data(self);
@@ -147,7 +148,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const double rotors_wd[8], bool *imu_calibration_updated,
              const mikrokopter_log_s *log,
              const mikrokopter_rotors *rotors,
-             const mikrokopter_propeller_measure *propeller_measure,
+             const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
@@ -229,13 +230,14 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* publish */
   rotors->write(self);
-  propeller_measure->write(self);
+  rotor_measure->write(self);
   imu->write(self);
 
   /* log */
   if (log) {
     or_pose_estimator_state *idata = imu->data(self);
-    or_rotorcraft_input *pdata = propeller_measure->data(self);
+    or_rotorcraft_rotor_state *rdata =
+      rotor_measure->data(self)->rotor._buffer;
 
     fprintf(
       log->logf, mikrokopter_log_line "\n",
@@ -246,9 +248,9 @@ mk_main_perm(const mikrokopter_conn_s *conn,
       rotors_wd[0], rotors_wd[1], rotors_wd[2], rotors_wd[3],
       rotors_wd[4], rotors_wd[5], rotors_wd[6], rotors_wd[7],
 
-      pdata->w._buffer[0], pdata->w._buffer[1], pdata->w._buffer[2],
-      pdata->w._buffer[3], pdata->w._buffer[4], pdata->w._buffer[5],
-      pdata->w._buffer[6], pdata->w._buffer[7]);
+      rdata[0].velocity, rdata[1].velocity, rdata[2].velocity,
+      rdata[3].velocity, rdata[4].velocity, rdata[5].velocity,
+      rdata[6].velocity, rdata[7].velocity);
   }
 
   return mikrokopter_pause_main;
@@ -583,7 +585,7 @@ genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
               const sequence8_mikrokopter_rotor_state_s *rotors_state,
               double rotors_wd[8],
-              const mikrokopter_propeller_input *propeller_input,
+              const mikrokopter_rotor_input *rotor_input,
               const mikrokopter_ids_servo_s *servo, double *scale,
               const genom_context self)
 {
@@ -594,15 +596,15 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   if (!conn) return mikrokopter_e_connection(self);
 
   /* update input */
-  if (propeller_input->read(self)) return mikrokopter_e_input(self);
+  if (rotor_input->read(self)) return mikrokopter_e_input(self);
 
-  input_data = propeller_input->data(self);
+  input_data = rotor_input->data(self);
   if (!input_data) return mikrokopter_e_input(self);
 
   if (*scale < 1.) {
     size_t i;
-    for(i = 0; i < input_data->w._length; i++)
-      input_data->w._buffer[i] *= *scale;
+    for(i = 0; i < input_data->desired._length; i++)
+      input_data->desired._buffer[i] *= *scale;
 
     *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
   }
@@ -616,7 +618,8 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   }
 
   /* send */
-  e = mk_set_velocity(conn, rotors_state, rotors_wd, &input_data->w, self);
+  e = mk_set_velocity(
+    conn, rotors_state, rotors_wd, &input_data->desired, self);
   if (e) return e;
 
   return mikrokopter_pause_main;
