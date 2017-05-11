@@ -135,6 +135,48 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
 }
 
 
+/* --- Function set_velocity -------------------------------------------- */
+
+/** Validation codel mk_validate_input of function set_velocity.
+ *
+ * Returns genom_ok.
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ */
+genom_event
+mk_validate_input(const or_rotorcraft_rotor_state rotor_state[8],
+                  or_rotorcraft_rotor_control *desired,
+                  const genom_context self)
+{
+  mikrokopter_e_rotor_failure_detail e;
+  size_t i, l;
+
+  /* check rotors status */
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_state[i].disabled) continue;
+    if (rotor_state[i].emerg) {
+      e.id = 1 + i;
+      return mikrokopter_e_rotor_failure(&e, self);
+    }
+  }
+
+  /* discard trailing nans */
+  l = desired->_length;
+  while(l && isnan(desired->_buffer[l-1])) l--;
+  return genom_ok;
+}
+
+
+/* --- Function set_throttle -------------------------------------------- */
+
+/** Validation codel mk_validate_input of function set_throttle.
+ *
+ * Returns genom_ok.
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ */
+/* already defined in service set_velocity validation */
+
+
+
 /* --- Function disable_motor ------------------------------------------- */
 
 /** Codel mk_disable_motor of function disable_motor.
@@ -216,22 +258,11 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
                 const or_rotorcraft_rotor_control *desired,
                 const genom_context self)
 {
-  mikrokopter_e_rotor_failure_detail e;
   int16_t p[or_rotorcraft_max_rotors];
   size_t i, l;
+  (void)self;
 
-  /* check rotors status */
-  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    if (rotor_state[i].disabled) continue;
-    if (rotor_state[i].emerg) {
-      e.id = 1 + i;
-      return mikrokopter_e_rotor_failure(&e, self);
-    }
-  }
-
-  /* discard trailing nans */
   l = desired->_length;
-  while(l && isnan(desired->_buffer[l-1])) l--;
   if (l == 0) return genom_ok;
 
   /* rotational period */
@@ -244,6 +275,39 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
 
   /* send */
   mk_send_msg(&conn->chan[0], "w%@", p, l);
+  return genom_ok;
+}
+
+
+/* --- Function set_throttle -------------------------------------------- */
+
+/** Codel mk_set_throttle of function set_throttle.
+ *
+ * Returns genom_ok.
+ * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ */
+genom_event
+mk_set_throttle(const mikrokopter_conn_s *conn,
+                const or_rotorcraft_rotor_state rotor_state[8],
+                double rotor_wd[8],
+                const or_rotorcraft_rotor_control *desired,
+                const genom_context self)
+{
+  int16_t p[or_rotorcraft_max_rotors];
+  size_t i, l;
+  (void)self;
+
+  l = desired->_length;
+  if (l == 0) return genom_ok;
+
+  /* convert to -1023..1023 */
+  for(i = 0; i < l; i++) {
+    rotor_wd[i] = 0.;
+    p[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i] * 1023./100.;
+  }
+
+  /* send */
+  mk_send_msg(&conn->chan[0], "q%@", p, l);
   return genom_ok;
 }
 

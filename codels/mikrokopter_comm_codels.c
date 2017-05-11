@@ -240,7 +240,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
-            rotor_state[id].throttle = v16 * 100./1024.;
+            rotor_state[id].throttle = v16 * 100./1023.;
 
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);

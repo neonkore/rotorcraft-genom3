@@ -591,8 +591,17 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   }
 
   /* send */
-  e = mk_set_velocity(
-    conn, rotor_state, rotor_wd, &input_data->desired, self);
+  switch(input_data->control) {
+    case or_rotorcraft_velocity:
+      e = mk_set_velocity(
+        conn, rotor_state, rotor_wd, &input_data->desired, self);
+      break;
+
+    case or_rotorcraft_throttle:
+      e = mk_set_throttle(
+        conn, rotor_state, rotor_wd, &input_data->desired, self);
+      break;
+  }
   if (e) return e;
 
   return mikrokopter_pause_main;

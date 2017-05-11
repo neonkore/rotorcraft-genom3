@@ -281,9 +281,21 @@ version		"1.5";
 
   function set_velocity(
        in or_rotorcraft::rotor_control desired =: "Propeller velocities") {
-    doc		"Set the given velocity once";
+    doc		"Set the given propeller velocity, once";
 
+    validate mk_validate_input(in rotor_state, inout desired);
     codel mk_set_velocity(in conn, in rotor_state, out rotor_wd, in desired);
+
+    interrupt servo;
+    throw e_connection, e_rotor_failure;
+  };
+
+  function set_throttle(
+       in or_rotorcraft::rotor_control desired =: "Propeller throttles") {
+    doc		"Set the given propeller voltage";
+
+    validate mk_validate_input(in rotor_state, inout desired);
+    codel mk_set_throttle(in conn, in rotor_state, out rotor_wd, in desired);
 
     interrupt servo;
     throw e_connection, e_rotor_failure;
