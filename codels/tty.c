@@ -32,15 +32,22 @@
 # include <linux/serial.h> /* for TIOCGSERIAL and ASYNC_LOW_LATENCY */
 #endif
 
+#ifdef __linux__
+# include <libudev.h>
+#endif
+
 #include "codels.h"
 
 
 /* --- mk_open_tty --------------------------------------------------------- */
 
+static const char *	usb_serial_to_tty(const char *serial);
+
 /* Open a serial port, configure to the given baud rate */
 int
 mk_open_tty(const char *device, uint32_t speed)
 {
+  const char *path;
   struct termios t;
   speed_t baud;
   int fd;
@@ -55,6 +62,9 @@ mk_open_tty(const char *device, uint32_t speed)
 #ifndef B500000
 # define B500000 500000U
 #endif
+#ifndef B2000000
+# define B2000000 2000000U
+#endif
   switch(speed) {
     case 57600:		baud = B57600; break;
     case 115200:	baud = B115200; break;
@@ -63,6 +73,10 @@ mk_open_tty(const char *device, uint32_t speed)
 
     default: errno = EINVAL; return -1;
   }
+
+  /* try to match a serial id first */
+  path = usb_serial_to_tty(device);
+  if (path) device = path;
 
   /* open non-blocking */
   fd = open(device, O_RDWR | O_NOCTTY | O_NONBLOCK);
@@ -116,6 +130,62 @@ mk_open_tty(const char *device, uint32_t speed)
 #endif
 
   return fd;
+}
+
+
+/* --- usb_serial_to_tty --------------------------------------------------- */
+
+/* Return a tty device matching the "serial" string */
+
+static const char *
+usb_serial_to_tty(const char *serial)
+{
+#ifdef __linux__
+  struct udev *udev;
+  struct udev_enumerate *scan = NULL;
+  struct udev_list_entry *ttys, *tty;
+  struct udev_device *dev = NULL, *usb;
+  const char *path = NULL;
+
+  udev = udev_new();
+  if (!udev) return NULL;
+
+  /* iterate over tty devices */
+  scan = udev_enumerate_new(udev);
+  if (udev_enumerate_add_match_subsystem(scan, "tty")) goto done;
+  if (udev_enumerate_scan_devices(scan)) goto done;
+
+  ttys = udev_enumerate_get_list_entry(scan);
+  udev_list_entry_foreach(tty, ttys) {
+    const char *sysfs, *userial;
+
+    /* get sysfs entry for the device and create a corresponding udev_device */
+    if (dev) udev_device_unref(dev);
+    sysfs = udev_list_entry_get_name(tty);
+    dev = udev_device_new_from_syspath(udev, sysfs);
+
+    /* get the USB device, it any */
+    usb = udev_device_get_parent_with_subsystem_devtype(
+      dev, "usb", "usb_device");
+    if (!usb) continue;
+
+    userial = udev_device_get_sysattr_value(usb, "serial");
+    if (!userial || strcmp(userial, serial)) continue;
+
+    /* got a match, return the tty path */
+    path = strdup(udev_device_get_devnode(dev)); /* this will leak ... */
+    break;
+  }
+  if (dev) udev_device_unref(dev);
+
+done:
+  if (scan) udev_enumerate_unref(scan);
+  if (udev) udev_unref(udev);
+  return path;
+
+#else
+  return NULL; /* if needed, implement this for other OSes */
+#endif
 }
 
 

@@ -23,6 +23,7 @@ AC_CONFIG_MACRO_DIR([autoconf])
 AC_CONFIG_AUX_DIR([autoconf])
 AC_CONFIG_HEADERS([autoconf/acmikrokopter.h])
 AM_INIT_AUTOMAKE([foreign no-define])
+AC_CANONICAL_HOST
 
 dnl Compilers
 dnl
@@ -65,6 +66,11 @@ if test "$ac_cv_header_sys_ioctl_h$ac_cv_header_linux_serial_h" = yesyes; then
    AC_DEFINE([HAVE_LOW_LATENCY_IOCTL], [], [FTDI low latency ioctl])],
    AC_MSG_RESULT(no))
 fi
+
+# libudev for serial <-> tty
+case "${host_os}" in
+  linux*) PKG_CHECK_MODULES(libudev, [libudev]);;
+esac
 
 dnl Output
 AC_CONFIG_FILES([

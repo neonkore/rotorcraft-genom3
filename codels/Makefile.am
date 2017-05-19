@@ -29,6 +29,8 @@ libmikrokopter_codels_la_CPPFLAGS=	$(requires_CFLAGS)
 libmikrokopter_codels_la_LDFLAGS=	$(requires_LIBS)
 libmikrokopter_codels_la_LDFLAGS+=	-release $(PACKAGE_VERSION)
 
+libmikrokopter_codels_la_CPPFLAGS+=	$(libudev_CFLAGS)
+libmikrokopter_codels_la_LDFLAGS+=	$(libudev_LIBS)
 
 # idl  mappings
 BUILT_SOURCES=	mikrokopter_c_types.h
