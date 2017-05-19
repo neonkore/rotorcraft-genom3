@@ -268,6 +268,7 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
   /* rotational period */
   for(i = 0; i < l; i++) {
     rotor_wd[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i];
+    if (isnan(rotor_wd[i])) rotor_wd[i] = 0.;
 
     p[i] = (fabs(rotor_wd[i]) < 1000000./65535.) ?
       copysign(32767, rotor_wd[i]) : 1000000/2/rotor_wd[i];
@@ -303,7 +304,10 @@ mk_set_throttle(const mikrokopter_conn_s *conn,
   /* convert to -1023..1023 */
   for(i = 0; i < l; i++) {
     rotor_wd[i] = 0.;
-    p[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i] * 1023./100.;
+    if (isnan(desired->_buffer[i]))
+      p[i] = 0.;
+    else
+      p[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i] * 1023./100.;
   }
 
   /* send */
