@@ -326,6 +326,9 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
     (*conn)->chan[i].fd = mk_open_tty(serial[i], baud);
     if ((*conn)->chan[i].fd < 0) return mk_e_sys_error(serial[i], self);
 
+    (*conn)->chan[i].r = (*conn)->chan[i].w = 0;
+    (*conn)->chan[i].start = (*conn)->chan[i].escape = false;
+
     /* check endpoint */
     while (mk_recv_msg(&(*conn)->chan[i], true) == 1); /* flush buffer */
     do {
