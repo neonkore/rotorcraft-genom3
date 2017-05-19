@@ -42,6 +42,7 @@
 /* --- mk_open_tty --------------------------------------------------------- */
 
 static const char *	usb_serial_to_tty(const char *serial);
+static int		ftdi_sio_check_latency(int fd);
 
 /* Open a serial port, configure to the given baud rate */
 int
@@ -115,7 +116,8 @@ mk_open_tty(const char *device, uint32_t speed)
     if (ioctl(fd, TIOCGSERIAL, &s)) {
       e = errno;
       close(fd);
-      return e;
+      errno = e;
+      return -1;
     }
 
     if (!(s.flags & ASYNC_LOW_LATENCY)) {
@@ -123,11 +125,17 @@ mk_open_tty(const char *device, uint32_t speed)
       if (ioctl(fd, TIOCSSERIAL, &s)) {
         e = errno;
         close(fd);
-        return e;
+        errno = e;
+        return -1;
       }
     }
   }
 #endif
+
+  if (ftdi_sio_check_latency(fd)) {
+    errno = EIO;
+    return -1;
+  }
 
   return fd;
 }
@@ -185,6 +193,64 @@ done:
 
 #else
   return NULL; /* if needed, implement this for other OSes */
+#endif
+}
+
+
+/* --- ftdi_sio_check_latency ---------------------------------------------- */
+
+/* Check the latency value for ftdi_sio driver */
+
+static int
+ftdi_sio_check_latency(int fd)
+{
+#ifdef __linux__
+  struct udev *udev;
+  struct udev_device *dev, *parent;
+  const char *attr;
+  struct stat sb;
+  int s = 0;
+
+  /* get devno */
+  if (fstat(fd, &sb)) return errno;
+
+  /* get udev_device */
+  udev = udev_new();
+  if (!udev) {
+    warnx("cannot use udev");
+    return 1;
+  }
+
+  dev = udev_device_new_from_devnum(udev, 'c', sb.st_rdev);
+  if (!dev) goto done;
+
+  /* check if it is an ftdi_sio */
+  for(parent = dev; parent; parent = udev_device_get_parent(parent)) {
+    attr = udev_device_get_sysattr_value(parent, "driver");
+    if (attr && !strcmp(attr, "ftdi_sio")) break;
+  }
+  if (!parent) goto done;
+
+  /* access latency attribute */
+  attr = udev_device_get_sysattr_value(parent, "latency_timer");
+  if (!attr) {
+    warnx("cannot access latency_timer");
+    s = 1;
+    goto done;
+  }
+
+  if (atoi(attr) > 1) {
+    warnx("FTDI latency timer too high: %sms, should be 1ms", attr);
+    s = 1;
+  }
+
+done:
+  if (dev) udev_device_unref(dev);
+  udev_unref(udev);
+  return s;
+
+#else
+  return 0; /* if needed, implement this for other OSes */
 #endif
 }
 
