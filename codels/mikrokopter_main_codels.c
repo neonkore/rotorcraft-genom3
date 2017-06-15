@@ -72,10 +72,9 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   };
   ids->imu_calibration_updated = true;
 
+  ids->imu_filter.enable = false;
   ids->imu_filter.gain = 0.05;
   ids->imu_filter.Q = 5;
-  mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
-                   ids->imu_filter.gain, ids->imu_filter.Q, 15, 143);
   Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
@@ -114,6 +113,7 @@ genom_event
 mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_battery_s *battery,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
+             const mikrokopter_ids_imu_filter_s *imu_filter,
              const or_rotorcraft_rotor_state rotor_state[8],
              const double rotor_wd[8], bool *imu_calibration_updated,
              const mikrokopter_log_s *log,
@@ -176,7 +176,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
   }
 
   /* filter IMU */
-  {
+  if (imu_filter->enable) {
     int c;
     double favg;
 

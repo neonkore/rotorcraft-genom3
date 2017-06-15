@@ -129,8 +129,9 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
 {
   (void)self;
 
-  mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
-                   imu_filter->gain, imu_filter->Q, 15, 143);
+  if (imu_filter->enable)
+    mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
+                     imu_filter->gain, imu_filter->Q, 15, 143);
   return genom_ok;
 }
 
