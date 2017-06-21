@@ -85,7 +85,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
       .energy_level = nan("")
     };
     ids->rotor_data.wd[i] = 0.;
-    ids->rotor_data.clkrate[i] = 0.;
+    ids->rotor_data.clkrate[i] = 0;
   }
 
   ids->servo.ramp = 3.;
@@ -214,9 +214,12 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     or_pose_estimator_state *idata = imu->data(self);
     or_rotorcraft_rotor_state *rdata =
       rotor_measure->data(self)->rotor._buffer;
+    struct timeval tv;
 
+    gettimeofday(&tv, NULL);
     fprintf(
       log->logf, mikrokopter_log_line "\n",
+      (uint64_t)tv.tv_sec, (uint32_t)tv.tv_usec * 1000,
       idata->ts.sec, idata->ts.nsec,
       idata->vel._value.wx, idata->vel._value.wy, idata->vel._value.wz,
       idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,

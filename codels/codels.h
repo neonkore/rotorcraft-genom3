@@ -18,6 +18,7 @@
 #define H_MIKROKOPTER_CODELS
 
 #include <errno.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,14 +29,15 @@
 struct mikrokopter_log_s {
   FILE *logf;
 
-# define mikrokopter_logfmt	" %2.6f "
+# define mikrokopter_logfmt	"%2.6f "
 # define mikrokopter_log_header                                         \
-  "ts imu_wx imu_wy imu_wz  imu_ax imu_ay imu_az "                      \
+  "ts imu_ts "                                                          \
+  "imu_wx imu_wy imu_wz  imu_ax imu_ay imu_az "                         \
   "cmd_v0 cmd_v1 cmd_v2 cmd_v3 cmd_v4 cmd_v5 cmd_v6 cmd_v7 "            \
-  "meas_v0 meas_v1 meas_v2 meas_v3 meas_v4 meas_v5 meas_v6 meas_v7"     \
+  "meas_v0 meas_v1 meas_v2 meas_v3 meas_v4 meas_v5 meas_v6 meas_v7 "    \
   "clk0 clk1 clk2 clk3 clk4 clk5 clk6 clk7"
 # define mikrokopter_log_line                                           \
-  "%d.%09d"                                                             \
+  "%" PRIu64 ".%09d " "%d.%09d "                                        \
   mikrokopter_logfmt mikrokopter_logfmt mikrokopter_logfmt              \
   mikrokopter_logfmt mikrokopter_logfmt mikrokopter_logfmt              \
                                                                         \
@@ -47,7 +49,7 @@ struct mikrokopter_log_s {
   mikrokopter_logfmt mikrokopter_logfmt mikrokopter_logfmt              \
   mikrokopter_logfmt mikrokopter_logfmt                                 \
                                                                         \
-  "%d" "%d" "%d" "%d" "%d" "%d" "%d" "%d"
+  "%d " "%d " "%d " "%d " "%d " "%d " "%d " "%d"
 };
 
 struct mk_channel_s {
