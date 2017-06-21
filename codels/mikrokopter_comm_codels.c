@@ -124,7 +124,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              mikrokopter_ids_sensor_time_s *sensor_time,
              const mikrokopter_imu *imu,
-             or_rotorcraft_rotor_state rotor_state[8],
+             mikrokopter_ids_rotor_data_s *rotor_data,
              mikrokopter_ids_battery_s *battery,
              const genom_context self)
 {
@@ -222,29 +222,29 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             if (id < 1 || id > or_rotorcraft_max_rotors) break;
             id--;
 
-            if (!rotor_state[id].ts.sec && rotor_state[id].disabled)
-              rotor_state[id].disabled = 0;
-            rotor_state[id].ts = mk_get_ts(
+            if (!rotor_data->state[id].ts.sec && rotor_data->state[id].disabled)
+              rotor_data->state[id].disabled = 0;
+            rotor_data->state[id].ts = mk_get_ts(
               seq, tv, sensor_time->rate.motor, &sensor_time->motor[id]);
 
-            rotor_state[id].emerg = !!(state & 0x80);
-            rotor_state[id].spinning = !!(state & 0x20);
-            rotor_state[id].starting = !!(state & 0x10);
+            rotor_data->state[id].emerg = !!(state & 0x80);
+            rotor_data->state[id].spinning = !!(state & 0x20);
+            rotor_data->state[id].starting = !!(state & 0x10);
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
-            if (rotor_state[id].spinning)
-              rotor_state[id].velocity = v16 ? 1e6/2/v16 : 0.;
+            if (rotor_data->state[id].spinning)
+              rotor_data->state[id].velocity = v16 ? 1e6/2/v16 : 0.;
             else
-              rotor_state[id].velocity = 0.;
+              rotor_data->state[id].velocity = 0.;
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
-            rotor_state[id].throttle = v16 * 100./1023.;
+            rotor_data->state[id].throttle = v16 * 100./1023.;
 
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
-            rotor_state[id].consumption = u16 / 1e3;
+            rotor_data->state[id].consumption = u16 / 1e3;
           }
           break;
 
@@ -260,7 +260,17 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             p = 100. *
               (battery->level - battery->min)/(battery->max - battery->min);
             for(i = 0; i < or_rotorcraft_max_rotors; i++)
-              rotor_state[i].energy_level = p;
+              rotor_data->state[i].energy_level = p;
+          }
+          break;
+
+        case 'T': /* clock rate */
+          if (len == 3) {
+            uint8_t id = *msg++;
+
+            if (id < 1 || id > or_rotorcraft_max_rotors) break;
+            id--;
+            rotor_data->clkrate[id] = *msg;
           }
           break;
       }

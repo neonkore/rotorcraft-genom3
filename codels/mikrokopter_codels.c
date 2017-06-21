@@ -144,7 +144,7 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
  * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
  */
 genom_event
-mk_validate_input(const or_rotorcraft_rotor_state rotor_state[8],
+mk_validate_input(const or_rotorcraft_rotor_state state[8],
                   or_rotorcraft_rotor_control *desired,
                   const genom_context self)
 {
@@ -153,8 +153,8 @@ mk_validate_input(const or_rotorcraft_rotor_state rotor_state[8],
 
   /* check rotors status */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    if (rotor_state[i].disabled) continue;
-    if (rotor_state[i].emerg) {
+    if (state[i].disabled) continue;
+    if (state[i].emerg) {
       e.id = 1 + i;
       return mikrokopter_e_rotor_failure(&e, self);
     }
@@ -186,7 +186,7 @@ mk_validate_input(const or_rotorcraft_rotor_state rotor_state[8],
  */
 genom_event
 mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
-                 or_rotorcraft_rotor_state rotor_state[8],
+                 or_rotorcraft_rotor_state state[8],
                  const genom_context self)
 {
   struct timeval tv;
@@ -195,7 +195,7 @@ mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
     return mikrokopter_e_range(self);
 
   gettimeofday(&tv, NULL);
-  rotor_state[motor - 1] = (or_rotorcraft_rotor_state){
+  state[motor - 1] = (or_rotorcraft_rotor_state){
     .ts = { .sec = tv.tv_sec, .nsec = tv.tv_usec * 1000 },
     .emerg = false, .spinning = false, .starting = false, .disabled = true,
     .velocity = nan(""), .throttle = nan(""), .consumption = nan(""),
@@ -216,7 +216,7 @@ mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
-                or_rotorcraft_rotor_state rotor_state[8],
+                or_rotorcraft_rotor_state state[8],
                 const genom_context self)
 {
   struct timeval tv;
@@ -225,7 +225,7 @@ mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
     return mikrokopter_e_range(self);
 
   gettimeofday(&tv, NULL);
-  rotor_state[motor - 1] = (or_rotorcraft_rotor_state){
+  state[motor - 1] = (or_rotorcraft_rotor_state){
     .ts = { .sec = tv.tv_sec, .nsec = tv.tv_usec * 1000 },
     .emerg = false, .spinning = false, .starting = false, .disabled = false
   };
@@ -233,8 +233,8 @@ mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
   if (conn) {
     size_t i;
     for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-      if (rotor_state[i].disabled) continue;
-      if (!rotor_state[i].spinning) continue;
+      if (state[i].disabled) continue;
+      if (!state[i].spinning) continue;
 
       mk_send_msg(&conn->chan[0], "g%1", (uint8_t){motor});
       break;
@@ -254,8 +254,7 @@ mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_set_velocity(const mikrokopter_conn_s *conn,
-                const or_rotorcraft_rotor_state rotor_state[8],
-                double rotor_wd[8],
+                mikrokopter_ids_rotor_data_s *rotor_data,
                 const or_rotorcraft_rotor_control *desired,
                 const genom_context self)
 {
@@ -268,11 +267,12 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
 
   /* rotational period */
   for(i = 0; i < l; i++) {
-    rotor_wd[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i];
-    if (isnan(rotor_wd[i])) rotor_wd[i] = 0.;
+    rotor_data->wd[i] =
+      rotor_data->state[i].disabled ? 0. : desired->_buffer[i];
+    if (isnan(rotor_data->wd[i])) rotor_data->wd[i] = 0.;
 
-    p[i] = (fabs(rotor_wd[i]) < 1000000./65535.) ?
-      copysign(32767, rotor_wd[i]) : 1000000/2/rotor_wd[i];
+    p[i] = (fabs(rotor_data->wd[i]) < 1000000./65535.) ?
+      copysign(32767, rotor_data->wd[i]) : 1000000/2/rotor_data->wd[i];
   }
 
   /* send */
@@ -290,8 +290,7 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_set_throttle(const mikrokopter_conn_s *conn,
-                const or_rotorcraft_rotor_state rotor_state[8],
-                double rotor_wd[8],
+                mikrokopter_ids_rotor_data_s *rotor_data,
                 const or_rotorcraft_rotor_control *desired,
                 const genom_context self)
 {
@@ -304,11 +303,12 @@ mk_set_throttle(const mikrokopter_conn_s *conn,
 
   /* convert to -1023..1023 */
   for(i = 0; i < l; i++) {
-    rotor_wd[i] = 0.;
+    rotor_data->wd[i] = 0.;
     if (isnan(desired->_buffer[i]))
       p[i] = 0.;
     else
-      p[i] = rotor_state[i].disabled ? 0. : desired->_buffer[i] * 1023./100.;
+      p[i] =
+        rotor_data->state[i].disabled ? 0. : desired->_buffer[i] * 1023./100.;
   }
 
   /* send */

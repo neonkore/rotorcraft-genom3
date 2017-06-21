@@ -78,13 +78,14 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    ids->rotor_state[i] = (or_rotorcraft_rotor_state){
+    ids->rotor_data.state[i] = (or_rotorcraft_rotor_state){
       .ts = { 0, 0 },
       .emerg = false, .spinning = false, .starting = false, .disabled = true,
       .velocity = nan(""), .throttle = nan(""), .consumption = nan(""),
       .energy_level = nan("")
     };
-    ids->rotor_wd[i] = 0.;
+    ids->rotor_data.wd[i] = 0.;
+    ids->rotor_data.clkrate[i] = 0.;
   }
 
   ids->servo.ramp = 3.;
@@ -114,8 +115,8 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_battery_s *battery,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              const mikrokopter_ids_imu_filter_s *imu_filter,
-             const or_rotorcraft_rotor_state rotor_state[8],
-             const double rotor_wd[8], bool *imu_calibration_updated,
+             const mikrokopter_ids_rotor_data_s *rotor_data,
+             bool *imu_calibration_updated,
              const mikrokopter_log_s *log,
              const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
@@ -181,7 +182,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     double favg;
 
     for(i = c = 0; i < or_rotorcraft_max_rotors; i++) {
-      if (rotor_wd[i] > 15.) { c++; favg += rotor_wd[i]; }
+      if (rotor_data->wd[i] > 15.) { c++; favg += rotor_data->wd[i]; }
     }
 
     if (c) {
@@ -200,8 +201,8 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* publish */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    rotor_measure->data(self)->rotor._buffer[i] = rotor_state[i];
-    if (!rotor_state[i].disabled)
+    rotor_measure->data(self)->rotor._buffer[i] = rotor_data->state[i];
+    if (!rotor_data->state[i].disabled)
       rotor_measure->data(self)->rotor._length = i + 1;
   }
   rotor_measure->write(self);
@@ -220,12 +221,17 @@ mk_main_perm(const mikrokopter_conn_s *conn,
       idata->vel._value.wx, idata->vel._value.wy, idata->vel._value.wz,
       idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,
 
-      rotor_wd[0], rotor_wd[1], rotor_wd[2], rotor_wd[3],
-      rotor_wd[4], rotor_wd[5], rotor_wd[6], rotor_wd[7],
+      rotor_data->wd[0], rotor_data->wd[1], rotor_data->wd[2],
+      rotor_data->wd[3], rotor_data->wd[4], rotor_data->wd[5],
+      rotor_data->wd[6], rotor_data->wd[7],
 
       rdata[0].velocity, rdata[1].velocity, rdata[2].velocity,
       rdata[3].velocity, rdata[4].velocity, rdata[5].velocity,
-      rdata[6].velocity, rdata[7].velocity);
+      rdata[6].velocity, rdata[7].velocity,
+
+      rotor_data->clkrate[0], rotor_data->clkrate[1], rotor_data->clkrate[2],
+      rotor_data->clkrate[3], rotor_data->clkrate[4], rotor_data->clkrate[5],
+      rotor_data->clkrate[6], rotor_data->clkrate[7]);
   }
 
   return mikrokopter_pause_main;
@@ -556,8 +562,7 @@ mk_servo_start(double *scale, const genom_context self)
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
-              const or_rotorcraft_rotor_state rotor_state[8],
-              double rotor_wd[8],
+              mikrokopter_ids_rotor_data_s *rotor_data,
               const mikrokopter_rotor_input *rotor_input,
               const mikrokopter_ids_servo_s *servo, double *scale,
               const genom_context self)
@@ -594,12 +599,12 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   switch(input_data->control) {
     case or_rotorcraft_velocity:
       e = mk_set_velocity(
-        conn, rotor_state, rotor_wd, &input_data->desired, self);
+        conn, rotor_data, &input_data->desired, self);
       break;
 
     case or_rotorcraft_throttle:
       e = mk_set_throttle(
-        conn, rotor_state, rotor_wd, &input_data->desired, self);
+        conn, rotor_data, &input_data->desired, self);
       break;
   }
   if (e) return e;
@@ -639,7 +644,7 @@ mk_servo_stop(const mikrokopter_conn_s *conn,
  */
 genom_event
 mk_stop(const mikrokopter_conn_s *conn,
-        const or_rotorcraft_rotor_state rotor_state[8],
+        const or_rotorcraft_rotor_state state[8],
         const genom_context self)
 {
   size_t i;
@@ -648,8 +653,8 @@ mk_stop(const mikrokopter_conn_s *conn,
   mk_send_msg(&conn->chan[0], "x");
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    if (rotor_state[i].disabled) continue;
-    if (rotor_state[i].spinning) return mikrokopter_pause_start;
+    if (state[i].disabled) continue;
+    if (state[i].spinning) return mikrokopter_pause_start;
   }
 
   return mikrokopter_ether;
