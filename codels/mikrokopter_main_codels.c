@@ -582,20 +582,27 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   input_data = rotor_input->data(self);
   if (!input_data) return mikrokopter_e_input(self);
 
-  if (*scale < 1.) {
-    size_t i;
-    for(i = 0; i < input_data->desired._length; i++)
-      input_data->desired._buffer[i] *= *scale;
-
-    *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
-  }
-
   /* watchdog */
   gettimeofday(&tv, NULL);
   if (tv.tv_sec + 1e-6*tv.tv_usec >
       0.5 + input_data->ts.sec + 1e-9*input_data->ts.nsec) {
     /* do something smart here, instead of the following */
     return mikrokopter_stop;
+  }
+
+  /* linear input scaling for the first servo->ramp seconds */
+  if (*scale < 1.) {
+    static or_time_ts tvp;
+
+    /* don't scale twice */
+    if (tvp.sec != input_data->ts.sec || tvp.nsec != input_data->ts.nsec) {
+      size_t i;
+      for(i = 0; i < input_data->desired._length; i++)
+        input_data->desired._buffer[i] *= *scale;
+    }
+    tvp = input_data->ts;
+
+    *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
   }
 
   /* send */
