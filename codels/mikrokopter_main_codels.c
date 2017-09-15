@@ -179,7 +179,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
   /* filter IMU */
   if (imu_filter->enable) {
     int c;
-    double favg;
+    double favg = 0.;
 
     for(i = c = 0; i < or_rotorcraft_max_rotors; i++) {
       if (rotor_data->wd[i] > 15.) { c++; favg += rotor_data->wd[i]; }
