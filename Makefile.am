@@ -42,3 +42,9 @@ merge: merge-interactive
 merge-%:
 	cd ${top_srcdir} && ${GENOM3}  \
 		skeleton -l 'c' -m $* mikrokopter.gen
+
+# documentation
+dist_doc_DATA=	README.html README.adoc
+
+%.html: %.adoc
+	$(ASCIIDOCTOR) $(ASCIIDOCTOR_ARGS) -b html5 -o $@ $<

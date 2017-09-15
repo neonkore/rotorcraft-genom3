@@ -35,7 +35,7 @@ AC_PROG_CXX
 dnl External packages
 PKG_CHECK_MODULES(requires, [
   openrobots-idl >= 1.4
-  genom3 >= 2.99.26
+  genom3 >= 2.99.30
   eigen3
 ])
 
@@ -71,6 +71,10 @@ fi
 case "${host_os}" in
   linux*) PKG_CHECK_MODULES(libudev, [libudev]);;
 esac
+
+
+dnl Doc
+AM_MISSING_PROG([ASCIIDOCTOR], [asciidoctor])
 
 dnl Output
 AC_CONFIG_FILES([

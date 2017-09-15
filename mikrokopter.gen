@@ -23,8 +23,10 @@ component mikrokopter {
   version		"1.6.1";
   email			"openrobots@laas.fr";
   lang			"c";
-  require		"genom3 >= 2.99.26";
+  require		"genom3 >= 2.99.30";
   codels-require	"eigen3";
+
+  doc "Control mikrokopter multi-rotor UAVs.";
 
   provides	or_rotorcraft;
   uses		or_pose_estimator;
@@ -38,7 +40,14 @@ component mikrokopter {
   native conn_s;
   native log_s;
 
-  port out	or_pose_estimator::state imu;
+  port out	or_pose_estimator::state imu {
+    doc "Provides current gyroscopes and accelerometer measurements.";
+    doc "";
+    doc "According to the nature of data, the port is filled with the imu";
+    doc "data timestamp `ts`, `intrinsic` true, no position (`pos` and";
+    doc "`pos_cov` are absent) and linear velocities `vx`, `vy`, `vz` set to";
+    doc "`NaN`. All other elements are always present.";
+  };
 
 
   /* --- internal state ---------------------------------------------------- */
@@ -93,20 +102,77 @@ component mikrokopter {
     log_s log;
   };
 
-  attribute get_sensor_rate(out sensor_time.rate);
-  attribute set_sensor_rate(in sensor_time.rate) {
+  attribute get_sensor_rate(out sensor_time.rate = {
+      .imu =: "Accelerometer and gyroscopes measurement frequency",
+      .motor =: "Various motor data measurement frequency",
+      .battery =: "Battery level measurement frequency"
+    }) {
+    doc "Get hardware sensor data publishing rate, see <<set_sensor_rate>>.";
+  };
+  attribute set_sensor_rate(in sensor_time.rate = {
+      .imu = 1000.: "Accelerometer and gyroscopes measurement frequency",
+      .motor = 50: "Various motor data measurement frequency",
+      .battery = 1: "Battery level measurement frequency"
+    }) {
+    doc "Set hardware sensor data publishing rate, in _Hz_";
+    doc "";
+    doc "`imu` controls the update frequency of port <<imu>>, while `motor`";
+    doc "and `battery` indirectly control the port <<rotor_measure>>.";
+    doc "";
+    doc "CAUTION: The hardware may not be able to achieve the desired";
+    doc "frequency, especially for `motor` data when many motors are";
+    doc "controlled. In this case, no error will be reported, but the ports";
+    doc "update rate may be lower than expected.";
+
     validate mk_set_sensor_rate(local in rate, in conn, out sensor_time);
   };
 
-  attribute get_battery(out battery);
-  attribute set_battery_limits(in battery.min, in battery.max) {
+  attribute get_battery(out battery = {
+      .min =: "Minimum acceptable battery voltage",
+      .max =: "Full battery voltage",
+      .level =: "Current battery voltage"
+    }) {
+    doc "Get current battery voltage and limits.";
+  };
+  attribute set_battery_limits(
+      in battery.min = 14.0 : "Minimum acceptable battery voltage",
+      in battery.max = 16.7 : "Full battery voltage") {
+    doc "Set battery minimum and full voltage";
+    doc "";
+    doc "This controls the computed `energy left` percentage in the "
+      "port <<rotor_measure>>.";
     validate mk_set_battery_limits(in min, in max);
 
     throw e_range;
   };
 
-  attribute get_imu_calibration(out imu_calibration);
-  attribute set_imu_calibration(in imu_calibration) {
+  attribute get_imu_calibration(out imu_calibration = {
+      .gscale =: "Gyroscopes 3×3 scaling matrix (row major)",
+      .gbias =: "Gyroscopes bias vector",
+      .gstddev =: "Gyroscopes measurement noise",
+      .ascale =: "Accelerometers 3×3 scaling matrix (row major)",
+      .abias =: "Accelerometers bias vector",
+      .astddev =: "Accelerometers measurement noise"
+    }) {
+    doc "Get current gyroscopes and accelerometer calibration data.";
+  };
+  attribute set_imu_calibration(in imu_calibration = {
+      .gscale =: "Gyroscopes 3×3 scaling matrix (row major)",
+      .gbias =: "Gyroscopes bias vector",
+      .gstddev =: "Gyroscopes measurement noise",
+      .ascale =: "Accelerometers 3×3 scaling matrix (row major)",
+      .abias =: "Accelerometers bias vector",
+      .astddev =: "Accelerometers measurement noise"
+    }) {
+    doc "Set current gyroscopes and accelerometer calibration data.";
+    doc "";
+    doc "Calling this service is mandatory after each component start, in";
+    doc "order to obtain precise IMU measurements.";
+    doc "";
+    doc "Input parameters are typically those returned by a call to";
+    doc "<<get_imu_calibration>> after a successful <<calibrate_imu>>";
+    doc "(which see).";
+
     validate mk_set_imu_calibration(out imu_calibration_updated);
   };
 
@@ -207,8 +273,53 @@ component mikrokopter {
 
   /* --- calibration ------------------------------------------------------- */
 
-  activity calibrate_imu(in double tstill, in unsigned short nposes) {
-    doc		"Calibrate imu";
+  activity calibrate_imu(
+    in double tstill = 2 :"Duration in seconds of standstill positions",
+    in unsigned short nposes = 10 :"Number of different standstill positions") {
+    doc "Calibrate accelerometers and gyroscopes.";
+    doc	"";
+    doc "This service computes the `3×3` scaling matrices and `3D` bias vector";
+    doc "for both gyroscopes and accelerometers so that all data is returned";
+    doc "in a consistent, orthogonal frame of reference. This is done by";
+    doc "implementing the paper '`A robust and easy to implement method for";
+    doc "IMU calibration without external equipments, ICRA 2014`'. It requires";
+    doc "no external sensor and a minimum of 10 static poses spanning the";
+    doc "whole SO(3) space, with moderate motion in between. The standard";
+    doc "deviation of the sensor noise is also estimated.";
+    doc "";
+    doc "The `tstill` parameter controls the time after which a standstill";
+    doc "position is detected (2 seconds is fine), while `nposes` sets the";
+    doc "required number of such standstill positions (minimum 10).";
+    doc "";
+    doc "While running the calibration, a progress indication will be reported";
+    doc "to the standard output of the component. You should first set the";
+    doc "platform in the first standstill orientation, then start the service.";
+    doc "The service will report `stay still` until it has acquired the";
+    doc "first pose, then report `acquired pose 1`. You can then move to the";
+    doc "next standstill orientation, leave it until you read the same";
+    doc "messages again, and so on for all the `nposes` orientations.";
+    doc "";
+    doc "For the calibration to be precise, all the orientations";
+    doc "have to be as different as possible one from each other. Also, when";
+    doc "moving from one orientation to another, try to perform a motion such";
+    doc "that the angular velocities on all 3 axis are not zero.";
+    doc "";
+    doc "If you don't read `stay still` after moving to a new";
+    doc "pose, this means that the platform may be vibrating or slightly";
+    doc "moving, and the standstill detection cannot work. After some time,";
+    doc "the service will eventually abort and also report it on the standard";
+    doc "output.";
+    doc "";
+    doc "Once all orientations have been acquired, the results are set for the";
+    doc "current running instance, and available with <<get_imu_calibration>>.";
+    doc "Make sure to save the results somewhere before stopping the";
+    doc "component, so that you can load them with";
+    doc "<<set_imu_calibration>> when you later restart.";
+    doc "";
+    doc "CAUTION: This procedure does not set any particular vertical axis";
+    doc "and the IMU will typically end up calibrated but not aligned with the";
+    doc "gravity. Use <<set_zero>> (after calibration) to align the IMU.";
+
     task	main;
 
     codel<start> mk_calibrate_imu_start(in tstill, in nposes)
@@ -225,7 +336,24 @@ component mikrokopter {
   };
 
   activity set_zero() {
-    doc		"Set imu attitude to zero";
+    doc "Align IMU frame with the gravity vector and reset gyroscopes bias.";
+    doc "";
+    doc "This service updates the `3×3` scaling matrices and `3D` bias vector";
+    doc "for both gyroscopes and accelerometers so that the current";
+    doc "accelerometer measurements are only on the Z axis and the gyroscopes";
+    doc "return a 0 angular velocity on each axis.";
+    doc "";
+    doc "While running this service, the platform should be perfectly";
+    doc "standstill and in a horizontal configuration (i.e. it's roll and";
+    doc "pitch angles are considered zero).";
+    doc "";
+    doc "After completion, the current calibration results are updated and";
+    doc "can be retrieved with <<get_imu_calibration>>.";
+    doc "";
+    doc "This service should be called quite often, as the gyroscopes bias";
+    doc "are much dependent on the temperature, so it is important to";
+    doc "estimate them well.";
+
     task	main;
 
     local double accum[3], gycum[3];

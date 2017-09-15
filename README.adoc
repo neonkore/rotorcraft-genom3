@@ -1,0 +1,718 @@
+//
+// Copyright (c) 2015-2017 LAAS/CNRS
+// All rights reserved.
+//
+// Redistribution and use  in source  and binary  forms,  with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//   1. Redistributions of  source  code must retain the  above copyright
+//      notice and this list of conditions.
+//   2. Redistributions in binary form must reproduce the above copyright
+//      notice and  this list of  conditions in the  documentation and/or
+//      other materials provided with the distribution.
+//
+//					Anthony Mallet on Fri Feb 13 2015
+//
+
+// This file was generated from mikrokopter.gen by the skeleton
+// template. Manual changes should be preserved, although they should
+// rather be added to the "doc" attributes of the genom objects defined in
+// mikrokopter.gen.
+
+= mikrokopter component
+openrobots@laas.fr
+1.6.1
+:toc: left
+
+// fix default asciidoctor stylesheet issue #2407 and add hr clear rule
+ifdef::backend-html5[]
+[pass]
+++++
+<link rel="stylesheet" href="data:text/css,p{font-size: inherit !important}" >
+<link rel="stylesheet" href="data:text/css,hr{clear: both}" >
+++++
+endif::[]
+
+
+Control mikrokopter multi-rotor UAVs.
+
+
+== Ports
+
+
+[[rotor_input]]
+=== rotor_input (in)
+
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Data structure
+[disc]
+ * `struct ::or_rotorcraft::input` `rotor_input`
+ ** `struct ::or::time::ts` `ts`
+ *** `unsigned long` `sec`
+ *** `unsigned long` `nsec`
+ ** `enum ::or_rotorcraft::control_type` `control` ? { `velocity`, `throttle` }
+ ** `sequence< double, 8 >` `desired`
+
+|===
+
+'''
+
+[[rotor_measure]]
+=== rotor_measure (out)
+
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Data structure
+[disc]
+ * `struct ::or_rotorcraft::output` `rotor_measure`
+ ** `sequence< struct ::or_rotorcraft::rotor_state, 8 >` `rotor`
+ *** `struct ::or::time::ts` `ts`
+ **** `unsigned long` `sec`
+ **** `unsigned long` `nsec`
+ *** `boolean` `emerg`
+ *** `boolean` `spinning`
+ *** `boolean` `starting`
+ *** `boolean` `disabled`
+ *** `double` `velocity`
+ *** `double` `throttle`
+ *** `double` `consumption`
+ *** `double` `energy_level`
+
+|===
+
+'''
+
+[[imu]]
+=== imu (out)
+
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Data structure
+[disc]
+ * `struct ::or_pose_estimator::state` `imu`
+ ** `struct ::or::time::ts` `ts`
+ *** `unsigned long` `sec`
+ *** `unsigned long` `nsec`
+ ** `boolean` `intrinsic`
+ ** `optional< struct ::or::t3d::pos >` `pos`
+ *** `double` `x`
+ *** `double` `y`
+ *** `double` `z`
+ *** `double` `qw`
+ *** `double` `qx`
+ *** `double` `qy`
+ *** `double` `qz`
+ ** `optional< struct ::or::t3d::pos_cov >` `pos_cov`
+ *** `double` `cov[28]`
+ ** `optional< struct ::or::t3d::vel >` `vel`
+ *** `double` `vx`
+ *** `double` `vy`
+ *** `double` `vz`
+ *** `double` `wx`
+ *** `double` `wy`
+ *** `double` `wz`
+ ** `optional< struct ::or::t3d::vel_cov >` `vel_cov`
+ *** `double` `cov[21]`
+ ** `optional< struct ::or::t3d::acc >` `acc`
+ *** `double` `ax`
+ *** `double` `ay`
+ *** `double` `az`
+ ** `optional< struct ::or::t3d::acc_cov >` `acc_cov`
+ *** `double` `cov[6]`
+
+|===
+
+Provides current gyroscopes and accelerometer measurements.
+
+According to the nature of data, the port is filled with the imu
+data timestamp `ts`, `intrinsic` true, no position (`pos` and
+`pos_cov` are absent) and linear velocities `vx`, `vy`, `vz` set to
+`NaN`. All other elements are always present.
+
+'''
+
+== Services
+
+[[get_sensor_rate]]
+=== get_sensor_rate (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Outputs
+[disc]
+ * `struct ::mikrokopter::ids::sensor_time_s::rate_s` `rate`
+ ** `double` `imu` Accelerometer and gyroscopes measurement frequency
+ ** `double` `motor` Various motor data measurement frequency
+ ** `double` `battery` Battery level measurement frequency
+
+|===
+
+Get hardware sensor data publishing rate, see <<set_sensor_rate>>.
+
+'''
+
+[[set_sensor_rate]]
+=== set_sensor_rate (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `struct ::mikrokopter::ids::sensor_time_s::rate_s` `rate`
+ ** `double` `imu` (default `"1000"`) Accelerometer and gyroscopes measurement frequency
+ ** `double` `motor` (default `"50"`) Various motor data measurement frequency
+ ** `double` `battery` (default `"1"`) Battery level measurement frequency
+
+|===
+
+Set hardware sensor data publishing rate, in _Hz_
+
+`imu` controls the update frequency of port <<imu>>, while `motor`
+and `battery` indirectly control the port <<rotor_measure>>.
+
+CAUTION: The hardware may not be able to achieve the desired
+frequency, especially for `motor` data when many motors are
+controlled. In this case, no error will be reported, but the ports
+update rate may be lower than expected.
+
+'''
+
+[[get_battery]]
+=== get_battery (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Outputs
+[disc]
+ * `struct ::mikrokopter::ids::battery_s` `battery`
+ ** `double` `min` Minimum acceptable battery voltage
+ ** `double` `max` Full battery voltage
+ ** `double` `level` Current battery voltage
+
+|===
+
+Get current battery voltage and limits.
+
+'''
+
+[[set_battery_limits]]
+=== set_battery_limits (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `min` (default `"14"`) Minimum acceptable battery voltage
+
+ * `double` `max` (default `"16.7"`) Full battery voltage
+
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_range`
+
+|===
+
+Set battery minimum and full voltage
+
+This controls the computed `energy left` percentage in the port <<rotor_measure>>.
+
+'''
+
+[[get_imu_calibration]]
+=== get_imu_calibration (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Outputs
+[disc]
+ * `struct ::mikrokopter::ids::imu_calibration_s` `imu_calibration`
+ ** `double` `gscale[9]` Gyroscopes 3×3 scaling matrix (row major)
+ ** `double` `gbias[3]` Gyroscopes bias vector
+ ** `double` `gstddev[3]` Gyroscopes measurement noise
+ ** `double` `ascale[9]` Accelerometers 3×3 scaling matrix (row major)
+ ** `double` `abias[3]` Accelerometers bias vector
+ ** `double` `astddev[3]` Accelerometers measurement noise
+
+|===
+
+Get current gyroscopes and accelerometer calibration data.
+
+'''
+
+[[set_imu_calibration]]
+=== set_imu_calibration (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `struct ::mikrokopter::ids::imu_calibration_s` `imu_calibration`
+ ** `double` `gscale[9]` Gyroscopes 3×3 scaling matrix (row major)
+ ** `double` `gbias[3]` Gyroscopes bias vector
+ ** `double` `gstddev[3]` Gyroscopes measurement noise
+ ** `double` `ascale[9]` Accelerometers 3×3 scaling matrix (row major)
+ ** `double` `abias[3]` Accelerometers bias vector
+ ** `double` `astddev[3]` Accelerometers measurement noise
+
+|===
+
+Set current gyroscopes and accelerometer calibration data.
+
+Calling this service is mandatory after each component start, in
+order to obtain precise IMU measurements.
+
+Input parameters are typically those returned by a call to
+<<get_imu_calibration>> after a successful <<calibrate_imu>>
+(which see).
+
+'''
+
+[[get_imu_filter]]
+=== get_imu_filter (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Outputs
+[disc]
+ * `struct ::mikrokopter::ids::imu_filter_s` `imu_filter`
+ ** `boolean` `enable`
+ ** `double` `gain`
+ ** `double` `Q`
+
+|===
+
+'''
+
+[[set_imu_filter]]
+=== set_imu_filter (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `struct ::mikrokopter::ids::imu_filter_s` `imu_filter`
+ ** `boolean` `enable`
+ ** `double` `gain`
+ ** `double` `Q`
+
+|===
+
+'''
+
+[[set_ramp]]
+=== set_ramp (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `ramp`
+
+|===
+
+'''
+
+[[connect]]
+=== connect (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `string<64>` `serial[2]` Serial devices
+ ** `string<64>` `[0]` (default `"/dev/ttyUSB0"`) Main serial device
+ ** `string<64>` `[1]` (default `""`) Optional second serial device
+
+ * `unsigned long` `baud` (default `"115200"`) Baud rate
+
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+ * `exception ::mikrokopter::e_baddev`
+ ** `string<256>` `dev`
+
+a|.Context
+[disc]
+  * In task `<<comm>>`
+  * Interrupts `<<servo>>`
+|===
+
+Connect to the hardware
+
+'''
+
+[[disconnect]]
+=== disconnect (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+a|.Context
+[disc]
+  * In task `<<comm>>`
+|===
+
+Disconnect from the hardware
+
+'''
+
+[[monitor]]
+=== monitor (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+a|.Context
+[disc]
+  * In task `<<comm>>`
+|===
+
+Monitor connection status
+
+'''
+
+[[disable_motor]]
+=== disable_motor (function)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `unsigned short` `motor`
+
+|===
+
+Disable checking a motor status when it is disconnected
+
+'''
+
+[[enable_motor]]
+=== enable_motor (function)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `unsigned short` `motor`
+
+|===
+
+Disable checking a motor status when it is disconnected
+
+'''
+
+[[calibrate_imu]]
+=== calibrate_imu (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `tstill` (default `"2"`) Duration in seconds of standstill positions
+
+ * `unsigned short` `nposes` (default `"10"`) Number of different standstill positions
+
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+ * `exception ::mikrokopter::e_connection`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Updates port `<<imu>>`
+  * Interrupts `<<calibrate_imu>>`
+  * Interrupts `<<set_zero>>`
+|===
+
+Calibrate accelerometers and gyroscopes.
+
+This service computes the `3×3` scaling matrices and `3D` bias vector
+for both gyroscopes and accelerometers so that all data is returned
+in a consistent, orthogonal frame of reference. This is done by
+implementing the paper '`A robust and easy to implement method for
+IMU calibration without external equipments, ICRA 2014`'. It requires
+no external sensor and a minimum of 10 static poses spanning the
+whole SO(3) space, with moderate motion in between. The standard
+deviation of the sensor noise is also estimated.
+
+The `tstill` parameter controls the time after which a standstill
+position is detected (2 seconds is fine), while `nposes` sets the
+required number of such standstill positions (minimum 10).
+
+While running the calibration, a progress indication will be reported
+to the standard output of the component. You should first set the
+platform in the first standstill orientation, then start the service.
+The service will report `stay still` until it has acquired the
+first pose, then report `acquired pose 1`. You can then move to the
+next standstill orientation, leave it until you read the same
+messages again, and so on for all the `nposes` orientations.
+
+For the calibration to be precise, all the orientations
+have to be as different as possible one from each other. Also, when
+moving from one orientation to another, try to perform a motion such
+that the angular velocities on all 3 axis are not zero.
+
+If you don't read `stay still` after moving to a new
+pose, this means that the platform may be vibrating or slightly
+moving, and the standstill detection cannot work. After some time,
+the service will eventually abort and also report it on the standard
+output.
+
+Once all orientations have been acquired, the results are set for the
+current running instance, and available with <<get_imu_calibration>>.
+Make sure to save the results somewhere before stopping the
+component, so that you can load them with
+<<set_imu_calibration>> when you later restart.
+
+CAUTION: This procedure does not set any particular vertical axis
+and the IMU will typically end up calibrated but not aligned with the
+gravity. Use <<set_zero>> (after calibration) to align the IMU.
+
+'''
+
+[[set_zero]]
+=== set_zero (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Updates port `<<imu>>`
+  * Interrupts `<<calibrate_imu>>`
+  * Interrupts `<<set_zero>>`
+|===
+
+Align IMU frame with the gravity vector and reset gyroscopes bias.
+
+This service updates the `3×3` scaling matrices and `3D` bias vector
+for both gyroscopes and accelerometers so that the current
+accelerometer measurements are only on the Z axis and the gyroscopes
+return a 0 angular velocity on each axis.
+
+While running this service, the platform should be perfectly
+standstill and in a horizontal configuration (i.e. it's roll and
+pitch angles are considered zero).
+
+After completion, the current calibration results are updated and
+can be retrieved with <<get_imu_calibration>>.
+
+This service should be called quite often, as the gyroscopes bias
+are much dependent on the temperature, so it is important to
+estimate them well.
+
+'''
+
+[[start]]
+=== start (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_connection`
+
+ * `exception ::mikrokopter::e_started`
+
+ * `exception ::mikrokopter::e_rotor_failure`
+ ** `unsigned short` `id`
+
+ * `exception ::mikrokopter::e_rotor_not_disabled`
+ ** `unsigned short` `id`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Interrupts `<<start>>`
+|===
+
+Spin propellers at the lowest velocity
+
+'''
+
+[[servo]]
+=== servo (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_connection`
+
+ * `exception ::mikrokopter::e_rotor_failure`
+ ** `unsigned short` `id`
+
+ * `exception ::mikrokopter::e_input`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Reads port `<<rotor_input>>`
+|===
+
+Control the propellers according to the given velocities
+
+'''
+
+[[set_velocity]]
+=== set_velocity (function)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `sequence< double, 8 >` `desired` Propeller velocities
+
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_connection`
+
+ * `exception ::mikrokopter::e_rotor_failure`
+ ** `unsigned short` `id`
+
+a|.Context
+[disc]
+  * Interrupts `<<servo>>`
+|===
+
+Set the given propeller velocity, once
+
+'''
+
+[[set_throttle]]
+=== set_throttle (function)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `sequence< double, 8 >` `desired` Propeller throttles
+
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_connection`
+
+ * `exception ::mikrokopter::e_rotor_failure`
+ ** `unsigned short` `id`
+
+a|.Context
+[disc]
+  * Interrupts `<<servo>>`
+|===
+
+Set the given propeller voltage
+
+'''
+
+[[stop]]
+=== stop (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Interrupts `<<servo>>`
+  * Interrupts `<<start>>`
+|===
+
+Stop all propellers
+
+'''
+
+[[log]]
+=== log (function)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `string<64>` `path` (default `"/tmp/mikrokopter.log"`) Log file name
+
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+|===
+
+Log IMU and commanded wrench
+
+'''
+
+[[log_stop]]
+=== log_stop (function)
+
+
+Stop logging
+
+'''
+
+== Tasks
+
+[[main]]
+=== main
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Context
+[disc]
+  * Frequency 1000.0 _Hz_
+* Updates port `<<rotor_measure>>`
+* Updates port `<<imu>>`
+|===
+
+'''
+
+[[comm]]
+=== comm
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Context
+[disc]
+  * Free running
+* Updates port `<<imu>>`
+a|.Throws
+[disc]
+ * `exception ::mikrokopter::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+|===
+
+'''
