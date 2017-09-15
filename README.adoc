@@ -53,7 +53,7 @@ a|.Data structure
  ** `struct ::or::time::ts` `ts`
  *** `unsigned long` `sec`
  *** `unsigned long` `nsec`
- ** `enum ::or_rotorcraft::control_type` `control` ? { `velocity`, `throttle` }
+ ** `enum ::or_rotorcraft::control_type` `control` âˆˆ { `velocity`, `throttle` }
  ** `sequence< double, 8 >` `desired`
 
 |===
@@ -231,10 +231,10 @@ This controls the computed `energy left` percentage in the port <<rotor_measure>
 a|.Outputs
 [disc]
  * `struct ::mikrokopter::ids::imu_calibration_s` `imu_calibration`
- ** `double` `gscale[9]` Gyroscopes 3×3 scaling matrix (row major)
+ ** `double` `gscale[9]` Gyroscopes 3Ã—3 scaling matrix (row major)
  ** `double` `gbias[3]` Gyroscopes bias vector
  ** `double` `gstddev[3]` Gyroscopes measurement noise
- ** `double` `ascale[9]` Accelerometers 3×3 scaling matrix (row major)
+ ** `double` `ascale[9]` Accelerometers 3Ã—3 scaling matrix (row major)
  ** `double` `abias[3]` Accelerometers bias vector
  ** `double` `astddev[3]` Accelerometers measurement noise
 
@@ -252,10 +252,10 @@ Get current gyroscopes and accelerometer calibration data.
 a|.Inputs
 [disc]
  * `struct ::mikrokopter::ids::imu_calibration_s` `imu_calibration`
- ** `double` `gscale[9]` Gyroscopes 3×3 scaling matrix (row major)
+ ** `double` `gscale[9]` Gyroscopes 3Ã—3 scaling matrix (row major)
  ** `double` `gbias[3]` Gyroscopes bias vector
  ** `double` `gstddev[3]` Gyroscopes measurement noise
- ** `double` `ascale[9]` Accelerometers 3×3 scaling matrix (row major)
+ ** `double` `ascale[9]` Accelerometers 3Ã—3 scaling matrix (row major)
  ** `double` `abias[3]` Accelerometers bias vector
  ** `double` `astddev[3]` Accelerometers measurement noise
 
@@ -449,7 +449,7 @@ a|.Context
 
 Calibrate accelerometers and gyroscopes.
 
-This service computes the `3×3` scaling matrices and `3D` bias vector
+This service computes the `3Ã—3` scaling matrices and `3D` bias vector
 for both gyroscopes and accelerometers so that all data is returned
 in a consistent, orthogonal frame of reference. This is done by
 implementing the paper '`A robust and easy to implement method for
@@ -515,7 +515,7 @@ a|.Context
 
 Align IMU frame with the gravity vector and reset gyroscopes bias.
 
-This service updates the `3×3` scaling matrices and `3D` bias vector
+This service updates the `3Ã—3` scaling matrices and `3D` bias vector
 for both gyroscopes and accelerometers so that the current
 accelerometer measurements are only on the Z axis and the gyroscopes
 return a 0 angular velocity on each axis.
