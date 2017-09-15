@@ -122,6 +122,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_imu *imu, const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
+  or_rotorcraft_output *rdata = rotor_measure->data(self);
   ssize_t i;
 
   /* battery level */
@@ -201,9 +202,9 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* publish */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-    rotor_measure->data(self)->rotor._buffer[i] = rotor_data->state[i];
+    rdata->rotor._buffer[i] = rotor_data->state[i];
     if (!rotor_data->state[i].disabled)
-      rotor_measure->data(self)->rotor._length = i + 1;
+      rdata->rotor._length = i + 1;
   }
   rotor_measure->write(self);
   imu->write(self);
@@ -211,9 +212,6 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* log */
   if (log) {
-    or_pose_estimator_state *idata = imu->data(self);
-    or_rotorcraft_rotor_state *rdata =
-      rotor_measure->data(self)->rotor._buffer;
     struct timeval tv;
 
     gettimeofday(&tv, NULL);
@@ -228,9 +226,10 @@ mk_main_perm(const mikrokopter_conn_s *conn,
       rotor_data->wd[3], rotor_data->wd[4], rotor_data->wd[5],
       rotor_data->wd[6], rotor_data->wd[7],
 
-      rdata[0].velocity, rdata[1].velocity, rdata[2].velocity,
-      rdata[3].velocity, rdata[4].velocity, rdata[5].velocity,
-      rdata[6].velocity, rdata[7].velocity,
+      rdata->rotor._buffer[0].velocity, rdata->rotor._buffer[1].velocity,
+      rdata->rotor._buffer[2].velocity, rdata->rotor._buffer[3].velocity,
+      rdata->rotor._buffer[4].velocity, rdata->rotor._buffer[5].velocity,
+      rdata->rotor._buffer[6].velocity, rdata->rotor._buffer[7].velocity,
 
       rotor_data->clkrate[0], rotor_data->clkrate[1], rotor_data->clkrate[2],
       rotor_data->clkrate[3], rotor_data->clkrate[4], rotor_data->clkrate[5],
@@ -610,14 +609,15 @@ mk_servo_main(const mikrokopter_conn_s *conn,
     case or_rotorcraft_velocity:
       e = mk_set_velocity(
         conn, rotor_data, &input_data->desired, self);
+      if (e) return e;
       break;
 
     case or_rotorcraft_throttle:
       e = mk_set_throttle(
         conn, rotor_data, &input_data->desired, self);
+      if (e) return e;
       break;
   }
-  if (e) return e;
 
   return mikrokopter_pause_main;
 }
