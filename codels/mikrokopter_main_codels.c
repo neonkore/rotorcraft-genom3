@@ -489,7 +489,9 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
   mikrokopter_e_rotor_failure_detail e;
   mikrokopter_e_rotor_not_disabled_detail d;
   size_t i;
+  bool complete;
 
+  complete = true;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) {
       if (rotor_state[i].spinning) {
@@ -513,10 +515,10 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
       return mikrokopter_e_rotor_failure(&e, self);
     }
 
-    return mikrokopter_pause_monitor;
+    complete = false;
   }
 
-  return mikrokopter_ether;
+  return complete ? mikrokopter_ether : mikrokopter_pause_monitor;
 }
 
 /** Codel mk_start_stop of activity start.
