@@ -465,7 +465,11 @@ mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) continue;
     mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
+
+    /* wait until motor have cleared any emergency flag */
+    if (rotor_state[i].emerg) return mikrokopter_pause_start;
   }
+
   return mikrokopter_monitor;
 }
 

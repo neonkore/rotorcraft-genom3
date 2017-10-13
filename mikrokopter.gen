@@ -384,7 +384,7 @@ component mikrokopter {
 
     codel<start> mk_start_start(in conn, out state,
                                 in rotor_data.state::rotor_state)
-      yield monitor;
+      yield pause::start, monitor;
     codel<monitor> mk_start_monitor(in conn, inout state,
                                     in rotor_data.state::rotor_state)
       yield pause::monitor, ether;
