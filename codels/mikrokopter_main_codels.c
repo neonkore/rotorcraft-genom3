@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 LAAS/CNRS
+ * Copyright (c) 2015-2018 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -443,7 +443,7 @@ mk_set_zero(double accum[3], double gycum[3],
 /** Codel mk_start_start of activity start.
  *
  * Triggered by mikrokopter_start.
- * Yields to mikrokopter_monitor.
+ * Yields to mikrokopter_pause_start, mikrokopter_monitor.
  * Throws mikrokopter_e_connection, mikrokopter_e_started,
  *        mikrokopter_e_rotor_failure,
  *        mikrokopter_e_rotor_not_disabled.
