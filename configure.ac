@@ -1,6 +1,6 @@
 dnl Autoconf file for building mikrokopter codels library.
 dnl
-dnl Copyright (c) 2015-2017 LAAS/CNRS
+dnl Copyright (c) 2015-2018 LAAS/CNRS
 dnl All rights reserved.
 dnl
 dnl Redistribution and use  in source  and binary  forms,  with or without
@@ -18,7 +18,7 @@ dnl
 
 AC_PREREQ(2.59)
 
-AC_INIT([mikrokopter-genom3],[1.6.1],[openrobots@laas.fr])
+AC_INIT([mikrokopter-genom3],[1.7],[openrobots@laas.fr])
 AC_CONFIG_MACRO_DIR([autoconf])
 AC_CONFIG_AUX_DIR([autoconf])
 AC_CONFIG_HEADERS([autoconf/acmikrokopter.h])
