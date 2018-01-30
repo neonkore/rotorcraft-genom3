@@ -31,6 +31,8 @@ LT_INIT
 AC_PROG_CC
 AC_PROG_CXX
 
+dnl Features
+AC_SEARCH_LIBS([aio_write], [rt],, AC_MSG_ERROR([aio_write() not found], 2))
 
 dnl External packages
 PKG_CHECK_MODULES(requires, [

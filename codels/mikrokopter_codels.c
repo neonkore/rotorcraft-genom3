@@ -17,6 +17,7 @@
 #include "acmikrokopter.h"
 
 #include <sys/time.h>
+#include <fcntl.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -325,26 +326,32 @@ mk_set_throttle(const mikrokopter_conn_s *conn,
  * Throws mikrokopter_e_sys.
  */
 genom_event
-mk_log_start(const char path[64], mikrokopter_log_s **log,
-             const genom_context self)
+mk_log_start(const char path[64], uint32_t decimation,
+             mikrokopter_log_s **log, const genom_context self)
 {
-  FILE *f;
+  int fd;
 
-  mk_log_stop(log, self);
+  fd = open(path, O_WRONLY|O_APPEND|O_CREAT|O_TRUNC, 0666);
+  if (fd < 0) return mk_e_sys_error(path, self);
 
-  f = fopen(path, "w");
-  if (!f) return mk_e_sys_error("log", self);
-  fprintf(f, mikrokopter_log_header "\n");
+  if (write(
+        fd, mikrokopter_log_header "\n", sizeof(mikrokopter_log_header)) < 0)
+    return mk_e_sys_error(path, self);
 
-  *log = malloc(sizeof(**log));
-  if (!*log) {
-    fclose(f);
-    unlink(path);
-    errno = ENOMEM;
-    return mk_e_sys_error("log", self);
+  if ((*log)->req.aio_fildes >= 0) {
+    close((*log)->req.aio_fildes);
+
+    if ((*log)->pending)
+      while (aio_error(&(*log)->req) == EINPROGRESS)
+        /* empty body */;
   }
+  (*log)->req.aio_fildes = fd;
+  (*log)->pending = false;
+  (*log)->skipped = false;
+  (*log)->decimation = decimation < 1 ? 1 : decimation;
+  (*log)->missed = 0;
+  (*log)->total = 0;
 
-  (*log)->logf = f;
   return genom_ok;
 }
 
@@ -358,12 +365,32 @@ mk_log_start(const char path[64], mikrokopter_log_s **log,
 genom_event
 mk_log_stop(mikrokopter_log_s **log, const genom_context self)
 {
-  (void)self;
+  (void)self; /* -Wunused-parameter */
 
-  if (!*log) return genom_ok;
+  if (*log && (*log)->req.aio_fildes >= 0)
+    close((*log)->req.aio_fildes);
+  (*log)->req.aio_fildes = -1;
 
-  fclose((*log)->logf);
-  free(*log);
-  *log = NULL;
+  return genom_ok;
+}
+
+
+/* --- Function log_info ------------------------------------------------ */
+
+/** Codel mk_log_info of function log_info.
+ *
+ * Returns genom_ok.
+ */
+genom_event
+mk_log_info(const mikrokopter_log_s *log, uint32_t *miss,
+            uint32_t *total, const genom_context self)
+{
+  (void)self; /* -Wunused-parameter */
+
+  *miss = *total = 0;
+  if (log) {
+    *miss = log->missed;
+    *total = log->total;
+  }
   return genom_ok;
 }

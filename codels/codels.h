@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 LAAS/CNRS
+ * Copyright (c) 2015-2018 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -17,6 +17,7 @@
 #ifndef H_MIKROKOPTER_CODELS
 #define H_MIKROKOPTER_CODELS
 
+#include <aio.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -27,9 +28,13 @@
 #include "mikrokopter_c_types.h"
 
 struct mikrokopter_log_s {
-  FILE *logf;
+  struct aiocb req;
+  char buffer[4096];
+  bool pending, skipped;
+  uint32_t decimation;
+  size_t missed, total;
 
-# define mikrokopter_logfmt	"%2.6f "
+# define mikrokopter_logfmt	"%g "
 # define mikrokopter_log_header                                         \
   "ts imu_ts "                                                          \
   "imu_wx imu_wy imu_wz  imu_ax imu_ay imu_az "                         \

@@ -20,6 +20,7 @@
 #include <err.h>
 #include <float.h>
 #include <math.h>
+#include <unistd.h>
 
 #include "mikrokopter_c_types.h"
 #include "codels.h"
@@ -90,6 +91,23 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
 
   ids->servo.ramp = 3.;
 
+  /* init logging */
+  ids->log = malloc(sizeof(*ids->log));
+  if (!ids->log) abort();
+  *ids->log = (mikrokopter_log_s){
+    .req = {
+      .aio_fildes = -1,
+      .aio_offset = 0,
+      .aio_buf = ids->log->buffer,
+      .aio_nbytes = 0,
+      .aio_reqprio = 0,
+      .aio_sigevent = { .sigev_notify = SIGEV_NONE },
+      .aio_lio_opcode = LIO_NOP
+    },
+    .pending = false, .skipped = false,
+    .decimation = 1, .missed = 0, .total = 0
+  };
+
   *imu->data(self) = (or_pose_estimator_state){
     .ts = { 0, 0 },
     .intrinsic = true,
@@ -116,8 +134,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              const mikrokopter_ids_imu_filter_s *imu_filter,
              const mikrokopter_ids_rotor_data_s *rotor_data,
-             bool *imu_calibration_updated,
-             const mikrokopter_log_s *log,
+             bool *imu_calibration_updated, mikrokopter_log_s **log,
              const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
 {
@@ -211,29 +228,60 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
 
   /* log */
-  if (log) {
-    struct timeval tv;
+  if ((*log)->req.aio_fildes >= 0) {
+    (*log)->total++;
+    if ((*log)->total % (*log)->decimation == 0) {
+      if ((*log)->pending) {
+        if (aio_error(&(*log)->req) != EINPROGRESS) {
+          (*log)->pending = false;
+          if (aio_return(&(*log)->req) <= 0) {
+            warn("log");
+            close((*log)->req.aio_fildes);
+            (*log)->req.aio_fildes = -1;
+          }
+        } else {
+          (*log)->skipped = true;
+          (*log)->missed++;
+        }
+      }
+    }
 
-    gettimeofday(&tv, NULL);
-    fprintf(
-      log->logf, mikrokopter_log_line "\n",
-      (uint64_t)tv.tv_sec, (uint32_t)tv.tv_usec * 1000,
-      idata->ts.sec, idata->ts.nsec,
-      idata->vel._value.wx, idata->vel._value.wy, idata->vel._value.wz,
-      idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,
+    if ((*log)->req.aio_fildes >= 0 && !(*log)->pending) {
+      struct timeval tv;
 
-      rotor_data->wd[0], rotor_data->wd[1], rotor_data->wd[2],
-      rotor_data->wd[3], rotor_data->wd[4], rotor_data->wd[5],
-      rotor_data->wd[6], rotor_data->wd[7],
+      gettimeofday(&tv, NULL);
 
-      rdata->rotor._buffer[0].velocity, rdata->rotor._buffer[1].velocity,
-      rdata->rotor._buffer[2].velocity, rdata->rotor._buffer[3].velocity,
-      rdata->rotor._buffer[4].velocity, rdata->rotor._buffer[5].velocity,
-      rdata->rotor._buffer[6].velocity, rdata->rotor._buffer[7].velocity,
+      (*log)->req.aio_nbytes = snprintf(
+        (*log)->buffer, sizeof((*log)->buffer),
+        "%s" mikrokopter_log_line "\n",
+        (*log)->skipped ? "\n" : "",
+        (uint64_t)tv.tv_sec, (uint32_t)tv.tv_usec * 1000,
+        idata->ts.sec, idata->ts.nsec,
+        idata->vel._value.wx, idata->vel._value.wy, idata->vel._value.wz,
+        idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,
 
-      rotor_data->clkrate[0], rotor_data->clkrate[1], rotor_data->clkrate[2],
-      rotor_data->clkrate[3], rotor_data->clkrate[4], rotor_data->clkrate[5],
-      rotor_data->clkrate[6], rotor_data->clkrate[7]);
+        rotor_data->wd[0], rotor_data->wd[1], rotor_data->wd[2],
+        rotor_data->wd[3], rotor_data->wd[4], rotor_data->wd[5],
+        rotor_data->wd[6], rotor_data->wd[7],
+
+        rdata->rotor._buffer[0].velocity, rdata->rotor._buffer[1].velocity,
+        rdata->rotor._buffer[2].velocity, rdata->rotor._buffer[3].velocity,
+        rdata->rotor._buffer[4].velocity, rdata->rotor._buffer[5].velocity,
+        rdata->rotor._buffer[6].velocity, rdata->rotor._buffer[7].velocity,
+
+        rotor_data->clkrate[0], rotor_data->clkrate[1], rotor_data->clkrate[2],
+        rotor_data->clkrate[3], rotor_data->clkrate[4], rotor_data->clkrate[5],
+        rotor_data->clkrate[6], rotor_data->clkrate[7]);
+
+      if (aio_write(&(*log)->req)) {
+        warn("log");
+        close((*log)->req.aio_fildes);
+        (*log)->req.aio_fildes = -1;
+      } else
+        (*log)->pending = true;
+
+      (*log)->skipped = false;
+    }
   }
 
   return mikrokopter_pause_main;
@@ -249,6 +297,8 @@ genom_event
 mk_main_stop(mikrokopter_log_s **log, const genom_context self)
 {
   mk_log_stop(log, self);
+  if (*log) free(*log);
+
   return mikrokopter_ether;
 }
 

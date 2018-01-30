@@ -196,7 +196,7 @@ component mikrokopter {
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
                              in imu_filter, in rotor_data,
                              inout imu_calibration_updated,
-                             in log, out rotor_measure, out imu)
+                             inout log, out rotor_measure, out imu)
       yield pause::main;
 
     codel<stop> mk_main_stop(inout log)
@@ -448,10 +448,11 @@ component mikrokopter {
 
   /* --- logging ----------------------------------------------------------- */
 
-  function log(in string<64> path = "/tmp/mikrokopter.log": "Log file name") {
+  function log(in string<64> path = "/tmp/mikrokopter.log": "Log file name",
+               in unsigned long decimation = 1: "Reduced logging frequency") {
     doc		"Log IMU and commanded wrench";
 
-    codel mk_log_start(in path, inout log);
+    codel mk_log_start(in path, in decimation, inout log);
 
     throw e_sys;
   };
@@ -460,5 +461,12 @@ component mikrokopter {
     doc		"Stop logging";
 
     codel mk_log_stop(out log);
+  };
+
+  function log_info(out unsigned long miss = :"Missed log entries",
+                    out unsigned long total = :"Total log entries") {
+    doc		"Show missed log entries";
+
+    codel mk_log_info(in log, out miss, out total);
   };
 };

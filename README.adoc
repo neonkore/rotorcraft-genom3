@@ -662,6 +662,8 @@ a|.Inputs
 [disc]
  * `string<64>` `path` (default `"/tmp/mikrokopter.log"`) Log file name
 
+ * `unsigned long` `decimation` (default `"1"`) Reduced logging frequency
+
 a|.Throws
 [disc]
  * `exception ::mikrokopter::e_sys`
@@ -679,6 +681,23 @@ Log IMU and commanded wrench
 
 
 Stop logging
+
+'''
+
+[[log_info]]
+=== log_info (function)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Outputs
+[disc]
+ * `unsigned long` `miss` Missed log entries
+
+ * `unsigned long` `total` Total log entries
+
+|===
+
+Show missed log entries
 
 '''
 
