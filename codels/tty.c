@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 LAAS/CNRS
+ * Copyright (c) 2015-2018 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -192,6 +192,8 @@ done:
   return path;
 
 #else
+  (void)serial; /* -Wunused-parameter */
+
   return NULL; /* if needed, implement this for other OSes */
 #endif
 }
@@ -250,6 +252,8 @@ done:
   return s;
 
 #else
+  (void)fd; /* -Wunused-parameter */
+
   return 0; /* if needed, implement this for other OSes */
 #endif
 }
