@@ -14,13 +14,13 @@
  *
  *					Anthony Mallet on Fri Feb 13 2015
  */
-#pragma require "openrobots-idl >= 1.4"
+#pragma require "openrobots2-idl >= 2.0"
 
 #include "or/pose/pose_estimator.gen"
 #include "or/robot/rotorcraft.gen"
 
 component mikrokopter {
-  version		"1.7";
+  version		"2.0";
   email			"openrobots@laas.fr";
   lang			"c";
   require		"genom3 >= 2.99.30";

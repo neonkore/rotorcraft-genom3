@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2017 LAAS/CNRS
+ * Copyright (c) 2015-2018 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -110,13 +110,17 @@ mk_calibration_collect(or_pose_estimator_state *imu_data, int32_t *still)
     raw_data->gyr.conservativeResize(Eigen::NoChange,
                                     raw_data->gyr.cols() + raw_data->sps);
   raw_data->gyr.col(raw_data->samples) <<
-    imu_data->vel._value.wx, imu_data->vel._value.wy, imu_data->vel._value.wz;
+    imu_data->avel._value.wx,
+    imu_data->avel._value.wy,
+    imu_data->avel._value.wz;
 
   if (raw_data->acc.cols() <= raw_data->samples)
     raw_data->acc.conservativeResize(Eigen::NoChange,
                                     raw_data->acc.cols() + raw_data->sps);
   raw_data->acc.col(raw_data->samples) <<
-    imu_data->acc._value.ax, imu_data->acc._value.ay, imu_data->acc._value.az;
+    imu_data->acc._value.ax,
+    imu_data->acc._value.ay,
+    imu_data->acc._value.az;
 
 
   /* compute accelerometer variance over the last second */

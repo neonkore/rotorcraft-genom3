@@ -111,12 +111,22 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   *imu->data(self) = (or_pose_estimator_state){
     .ts = { 0, 0 },
     .intrinsic = true,
+
     .pos._present = false,
+    .att._present = false,
     .pos_cov._present = false,
+    .att_cov._present = false,
+    .att_pos_cov._present = false,
+
     .vel._present = false,
     .vel_cov._present = false,
+    .avel._present = false,
+    .avel_cov._present = false,
+
     .acc._present = false,
-    .acc_cov._present = false
+    .acc_cov._present = false,
+    .aacc._present = false,
+    .aacc_cov._present = false
   };
 
   return mikrokopter_main;
@@ -154,31 +164,16 @@ mk_main_perm(const mikrokopter_conn_s *conn,
 
   /* imu covariance data */
   if (*imu_calibration_updated) {
-    idata->vel_cov._value.cov[0] = 0.;
-    idata->vel_cov._value.cov[1] = 0.;
-    idata->vel_cov._value.cov[2] = 0.;
-    idata->vel_cov._value.cov[3] = 0.;
-    idata->vel_cov._value.cov[4] = 0.;
-    idata->vel_cov._value.cov[5] = 0.;
-    idata->vel_cov._value.cov[6] = 0.;
-    idata->vel_cov._value.cov[7] = 0.;
-    idata->vel_cov._value.cov[8] = 0.;
-    idata->vel_cov._value.cov[9] =
+    idata->avel_cov._value.cov[0] =
       imu_calibration->gstddev[0] * imu_calibration->gstddev[0];
-    idata->vel_cov._value.cov[10] = 0.;
-    idata->vel_cov._value.cov[11] = 0.;
-    idata->vel_cov._value.cov[12] = 0.;
-    idata->vel_cov._value.cov[13] = 0.;
-    idata->vel_cov._value.cov[14] =
+    idata->avel_cov._value.cov[1] = 0.;
+    idata->avel_cov._value.cov[2] =
       imu_calibration->gstddev[1] * imu_calibration->gstddev[1];
-    idata->vel_cov._value.cov[15] = 0.;
-    idata->vel_cov._value.cov[16] = 0.;
-    idata->vel_cov._value.cov[17] = 0.;
-    idata->vel_cov._value.cov[18] = 0.;
-    idata->vel_cov._value.cov[19] = 0.;
-    idata->vel_cov._value.cov[20] =
+    idata->avel_cov._value.cov[3] = 0.;
+    idata->avel_cov._value.cov[4] = 0.;
+    idata->avel_cov._value.cov[5] =
       imu_calibration->gstddev[2] * imu_calibration->gstddev[2];
-    idata->vel_cov._present = true;
+    idata->avel_cov._present = true;
 
     idata->acc_cov._value.cov[0] =
       imu_calibration->astddev[0] * imu_calibration->astddev[0];
@@ -210,9 +205,9 @@ mk_main_perm(const mikrokopter_conn_s *conn,
       idata->acc._value.ay = mk_imu_iirf(idata->acc._value.ay, &Hay, favg);
       idata->acc._value.az = mk_imu_iirf(idata->acc._value.az, &Haz, favg);
 
-      idata->vel._value.wx = mk_imu_iirf(idata->vel._value.wx, &Hwx, favg);
-      idata->vel._value.wy = mk_imu_iirf(idata->vel._value.wy, &Hwy, favg);
-      idata->vel._value.wz = mk_imu_iirf(idata->vel._value.wz, &Hwz, favg);
+      idata->avel._value.wx = mk_imu_iirf(idata->avel._value.wx, &Hwx, favg);
+      idata->avel._value.wy = mk_imu_iirf(idata->avel._value.wy, &Hwy, favg);
+      idata->avel._value.wz = mk_imu_iirf(idata->avel._value.wz, &Hwz, favg);
     }
   }
 
@@ -257,7 +252,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
         (*log)->skipped ? "\n" : "",
         (uint64_t)tv.tv_sec, (uint32_t)tv.tv_usec * 1000,
         idata->ts.sec, idata->ts.nsec,
-        idata->vel._value.wx, idata->vel._value.wy, idata->vel._value.wz,
+        idata->avel._value.wx, idata->avel._value.wy, idata->avel._value.wz,
         idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,
 
         rotor_data->wd[0], rotor_data->wd[1], rotor_data->wd[2],
@@ -443,9 +438,9 @@ mk_set_zero_collect(const mikrokopter_imu *imu, double accum[3],
     return mk_e_sys_error("set_zero", self);
   }
 
-  gycum[0] = (*n * gycum[0] - imu_data->vel._value.wx) / (1 + *n);
-  gycum[1] = (*n * gycum[1] - imu_data->vel._value.wy) / (1 + *n);
-  gycum[2] = (*n * gycum[2] - imu_data->vel._value.wz) / (1 + *n);
+  gycum[0] = (*n * gycum[0] - imu_data->avel._value.wx) / (1 + *n);
+  gycum[1] = (*n * gycum[1] - imu_data->avel._value.wy) / (1 + *n);
+  gycum[2] = (*n * gycum[2] - imu_data->avel._value.wz) / (1 + *n);
 
   accum[0] = (*n * accum[0] + imu_data->acc._value.ax) / (1 + *n);
   accum[1] = (*n * accum[1] + imu_data->acc._value.ay) / (1 + *n);

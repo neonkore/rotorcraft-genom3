@@ -102,7 +102,7 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
   or_pose_estimator_state *idata = imu->data(self);
 
   /* reset exported data in case of timeout */
-  idata->vel._present = false;
+  idata->avel._present = false;
   idata->acc._present = false;
   battery->level = 0.;
 
@@ -192,23 +192,20 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             v16 |= ((uint16_t)(*msg++) << 0);
             v[2] = v16/1000. + imu_calibration->gbias[2];
 
-            idata->vel._value.vx = nan("");
-            idata->vel._value.vy = nan("");
-            idata->vel._value.vz = nan("");
-            idata->vel._value.wx =
+            idata->avel._value.wx =
               imu_calibration->gscale[0] * v[0] +
               imu_calibration->gscale[1] * v[1] +
               imu_calibration->gscale[2] * v[2];
-            idata->vel._value.wy =
+            idata->avel._value.wy =
               imu_calibration->gscale[3] * v[0] +
               imu_calibration->gscale[4] * v[1] +
               imu_calibration->gscale[5] * v[2];
-            idata->vel._value.wz =
+            idata->avel._value.wz =
               imu_calibration->gscale[6] * v[0] +
               imu_calibration->gscale[7] * v[1] +
               imu_calibration->gscale[8] * v[2];
 
-            idata->vel._present = true;
+            idata->avel._present = true;
             idata->acc._present = true;
           }
           break;

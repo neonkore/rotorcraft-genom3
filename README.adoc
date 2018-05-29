@@ -22,7 +22,7 @@
 
 = mikrokopter component
 openrobots@laas.fr
-1.7
+2.0
 :toc: left
 
 // fix default asciidoctor stylesheet issue #2407 and add hr clear rule
@@ -103,26 +103,40 @@ a|.Data structure
  *** `double` `x`
  *** `double` `y`
  *** `double` `z`
+ ** `optional< struct ::or::t3d::att >` `att`
  *** `double` `qw`
  *** `double` `qx`
  *** `double` `qy`
  *** `double` `qz`
- ** `optional< struct ::or::t3d::pos_cov >` `pos_cov`
- *** `double` `cov[28]`
  ** `optional< struct ::or::t3d::vel >` `vel`
  *** `double` `vx`
  *** `double` `vy`
  *** `double` `vz`
+ ** `optional< struct ::or::t3d::avel >` `avel`
  *** `double` `wx`
  *** `double` `wy`
  *** `double` `wz`
- ** `optional< struct ::or::t3d::vel_cov >` `vel_cov`
- *** `double` `cov[21]`
  ** `optional< struct ::or::t3d::acc >` `acc`
  *** `double` `ax`
  *** `double` `ay`
  *** `double` `az`
+ ** `optional< struct ::or::t3d::aacc >` `aacc`
+ *** `double` `awx`
+ *** `double` `awy`
+ *** `double` `awz`
+ ** `optional< struct ::or::t3d::pos_cov >` `pos_cov`
+ *** `double` `cov[6]`
+ ** `optional< struct ::or::t3d::att_cov >` `att_cov`
+ *** `double` `cov[10]`
+ ** `optional< struct ::or::t3d::att_pos_cov >` `att_pos_cov`
+ *** `double` `cov[12]`
+ ** `optional< struct ::or::t3d::vel_cov >` `vel_cov`
+ *** `double` `cov[6]`
+ ** `optional< struct ::or::t3d::avel_cov >` `avel_cov`
+ *** `double` `cov[6]`
  ** `optional< struct ::or::t3d::acc_cov >` `acc_cov`
+ *** `double` `cov[6]`
+ ** `optional< struct ::or::t3d::aacc_cov >` `aacc_cov`
  *** `double` `cov[6]`
 
 |===
