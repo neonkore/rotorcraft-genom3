@@ -433,7 +433,7 @@ mk_set_zero_collect(const mikrokopter_imu *imu, double accum[3],
 {
   or_pose_estimator_state *imu_data = imu->data(self);
 
-  if (!imu_data->vel._present || !imu_data->acc._present) {
+  if (!imu_data->avel._present || !imu_data->acc._present) {
     errno = EIO;
     return mk_e_sys_error("set_zero", self);
   }

@@ -94,7 +94,7 @@ mk_calibration_collect(or_pose_estimator_state *imu_data, int32_t *still)
   *still = -1;
 
   /* check data */
-  if (!imu_data->vel._present || !imu_data->acc._present) return EIO;
+  if (!imu_data->avel._present || !imu_data->acc._present) return EIO;
   if (imu_data->ts.sec == raw_data->ts.sec &&
       imu_data->ts.nsec == raw_data->ts.nsec) return EAGAIN;
 
