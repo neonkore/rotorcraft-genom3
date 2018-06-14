@@ -103,7 +103,11 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
 
   /* reset exported data in case of timeout */
   idata->avel._present = false;
+  idata->avel._value.wx = idata->avel._value.wy = idata->avel._value.wz =
+    nan("");
   idata->acc._present = false;
+  idata->acc._value.ax = idata->acc._value.ay = idata->acc._value.az =
+    nan("");
   battery->level = 0.;
 
   if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
