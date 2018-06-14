@@ -592,6 +592,8 @@ a|.Throws
  * `exception ::mikrokopter::e_rotor_failure`
  ** `unsigned short` `id`
 
+ * `exception ::mikrokopter::e_rate`
+
  * `exception ::mikrokopter::e_input`
 
 a|.Context

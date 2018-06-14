@@ -35,7 +35,7 @@ component mikrokopter {
   exception e_baddev { string<256> dev; };
   exception e_rotor_failure { unsigned short id; };
   exception e_rotor_not_disabled { unsigned short id; };
-  exception e_started, e_connection, e_range, e_input;
+  exception e_started, e_connection, e_rate, e_range, e_input;
 
   native conn_s;
   native log_s;
@@ -406,7 +406,7 @@ component mikrokopter {
 
     local double scale;
 
-    codel<start> mk_servo_start(out scale)
+    codel<start> mk_servo_start(in sensor_time, out scale)
       yield main;
     codel<main> mk_servo_main(in conn, inout rotor_data,
                               in rotor_input, in servo, inout scale)
@@ -415,7 +415,7 @@ component mikrokopter {
     codel<stop> mk_servo_stop(in conn)
       yield ether;
 
-    throw e_connection, e_rotor_failure, e_input;
+    throw e_connection, e_rotor_failure, e_rate, e_input;
   };
 
   function set_velocity(

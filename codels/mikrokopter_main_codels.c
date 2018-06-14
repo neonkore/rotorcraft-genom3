@@ -597,12 +597,16 @@ mk_start_stop(const mikrokopter_conn_s *conn,
  * Triggered by mikrokopter_start.
  * Yields to mikrokopter_main.
  * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_input.
+ *        mikrokopter_e_rate, mikrokopter_e_input.
  */
 genom_event
-mk_servo_start(double *scale, const genom_context self)
+mk_servo_start(const mikrokopter_ids_sensor_time_s *sensor_time,
+               double *scale, const genom_context self)
 {
-  (void)self;
+  /* check sensor rate */
+  if (sensor_time->measured_rate.imu < 0.9 * sensor_time->rate.imu ||
+      sensor_time->measured_rate.motor < 0.9 * sensor_time->rate.motor)
+    return mikrokopter_e_rate(self);
 
   *scale = 0.;
   return mikrokopter_main;
@@ -613,7 +617,7 @@ mk_servo_start(double *scale, const genom_context self)
  * Triggered by mikrokopter_main.
  * Yields to mikrokopter_pause_main, mikrokopter_stop.
  * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_input.
+ *        mikrokopter_e_rate, mikrokopter_e_input.
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
@@ -681,7 +685,7 @@ mk_servo_main(const mikrokopter_conn_s *conn,
  * Triggered by mikrokopter_stop.
  * Yields to mikrokopter_ether.
  * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_input.
+ *        mikrokopter_e_rate, mikrokopter_e_input.
  */
 genom_event
 mk_servo_stop(const mikrokopter_conn_s *conn,
