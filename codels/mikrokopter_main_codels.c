@@ -43,9 +43,11 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   genom_event e;
   size_t i;
 
-  ids->sensor_time.rate.imu = 1000;
-  ids->sensor_time.rate.motor = 100;
-  ids->sensor_time.rate.battery = 1;
+  ids->sensor_time.rate = (mikrokopter_ids_sensor_time_s_rate_s){
+    .imu = 1000.,
+    .motor = 100.,
+    .battery = 1.
+  };
   e = mk_set_sensor_rate(
     &ids->sensor_time.rate, NULL, &ids->sensor_time, self);
   if (e) return e;
@@ -645,12 +647,13 @@ mk_servo_main(const mikrokopter_conn_s *conn,
     static or_time_ts tvp;
 
     /* don't scale twice */
-    if (tvp.sec != input_data->ts.sec || tvp.nsec != input_data->ts.nsec) {
+    if (tvp.nsec != input_data->ts.nsec || tvp.sec != input_data->ts.sec) {
       size_t i;
       for(i = 0; i < input_data->desired._length; i++)
         input_data->desired._buffer[i] *= *scale;
+
+      tvp = input_data->ts;
     }
-    tvp = input_data->ts;
 
     *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
   }

@@ -164,6 +164,11 @@ a|.Outputs
  ** `double` `motor` Various motor data measurement frequency
  ** `double` `battery` Battery level measurement frequency
 
+ * `struct ::mikrokopter::ids::sensor_time_s::rate_s` `measured_rate`
+ ** `double` `imu` Accelerometer and gyroscopes effective frequency
+ ** `double` `motor` Various motor data effective frequency
+ ** `double` `battery` Battery level effective frequency
+
 |===
 
 Get hardware sensor data publishing rate, see <<set_sensor_rate>>.

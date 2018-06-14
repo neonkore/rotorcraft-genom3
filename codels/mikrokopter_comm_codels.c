@@ -133,6 +133,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
              const genom_context self)
 {
   struct timeval tv;
+  or_time_ts ts;
   int more;
   size_t i;
   uint8_t *msg, len;
@@ -154,10 +155,16 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             double v[3];
             uint8_t seq = *msg++;
 
-            idata->ts = mk_get_ts(
+            ts = mk_get_ts(
               seq, tv, sensor_time->rate.imu, &sensor_time->imu);
-            idata->ts.sec = tv.tv_sec;
-            idata->ts.nsec = 1000*tv.tv_usec;
+
+            sensor_time->measured_rate.imu = (
+              99 * sensor_time->measured_rate.imu +
+              1. / (ts.sec - idata->ts.sec +
+                    (1 + ts.nsec - idata->ts.nsec) * 1e-9)
+              )/100.;
+
+            idata->ts = ts;
 
             v16 = ((int16_t)(*msg++) << 8);
             v16 |= ((uint16_t)(*msg++) << 0);
@@ -225,8 +232,16 @@ mk_comm_recv(mikrokopter_conn_s **conn,
 
             if (!rotor_data->state[id].ts.sec && rotor_data->state[id].disabled)
               rotor_data->state[id].disabled = 0;
-            rotor_data->state[id].ts = mk_get_ts(
+
+            ts = mk_get_ts(
               seq, tv, sensor_time->rate.motor, &sensor_time->motor[id]);
+
+            sensor_time->measured_rate.motor = (
+              99 * sensor_time->measured_rate.motor +
+              1. / (ts.sec - rotor_data->state[id].ts.sec +
+                    (1 + ts.nsec - rotor_data->state[id].ts.nsec) * 1e-9)
+              )/100;
+            rotor_data->state[id].ts = ts;
 
             rotor_data->state[id].emerg = !!(state & 0x80);
             rotor_data->state[id].spinning = !!(state & 0x20);
