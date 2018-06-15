@@ -168,6 +168,7 @@ mk_validate_input(const or_rotorcraft_rotor_state state[8],
   /* discard trailing nans */
   l = desired->_length;
   while(l && isnan(desired->_buffer[l-1])) l--;
+  desired->_length = l;
   return genom_ok;
 }
 
