@@ -638,6 +638,8 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   input_data = rotor_input->data(self);
   if (!input_data) return mikrokopter_e_input(self);
 
+  or_rotorcraft_rotor_control desired = input_data->desired;
+
   /* watchdog */
   gettimeofday(&tv, NULL);
   if (tv.tv_sec + 1e-6*tv.tv_usec >
@@ -648,16 +650,9 @@ mk_servo_main(const mikrokopter_conn_s *conn,
 
   /* linear input scaling for the first servo->ramp seconds */
   if (*scale < 1.) {
-    static or_time_ts tvp;
-
-    /* don't scale twice */
-    if (tvp.nsec != input_data->ts.nsec || tvp.sec != input_data->ts.sec) {
-      size_t i;
-      for(i = 0; i < input_data->desired._length; i++)
-        input_data->desired._buffer[i] *= *scale;
-
-      tvp = input_data->ts;
-    }
+    size_t i;
+    for(i = 0; i < input_data->desired._length; i++)
+      desired._buffer[i] *= *scale;
 
     *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
   }
@@ -666,13 +661,13 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   switch(input_data->control) {
     case or_rotorcraft_velocity:
       e = mk_set_velocity(
-        conn, rotor_data, &input_data->desired, self);
+        conn, rotor_data, &desired, self);
       if (e) return e;
       break;
 
     case or_rotorcraft_throttle:
       e = mk_set_throttle(
-        conn, rotor_data, &input_data->desired, self);
+        conn, rotor_data, &desired, self);
       if (e) return e;
       break;
   }
