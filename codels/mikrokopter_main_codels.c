@@ -541,14 +541,12 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
   complete = true;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) {
-      if (rotor_state[i].spinning) {
+      if (rotor_state[i].starting || rotor_state[i].spinning) {
         mk_send_msg(&conn->chan[0], "x");
         d.id = 1 + i;
         return mikrokopter_e_rotor_not_disabled(&d, self);
       }
 
-      if (rotor_state[i].starting)
-        return mikrokopter_pause_monitor;
       continue;
     }
 
