@@ -560,6 +560,9 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
       return mikrokopter_e_rotor_failure(&e, self);
     }
 
+    if (!rotor_state[i].starting)
+      mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
+
     complete = false;
   }
 
