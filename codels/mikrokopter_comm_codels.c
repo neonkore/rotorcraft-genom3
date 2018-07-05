@@ -218,7 +218,8 @@ mk_comm_recv(mikrokopter_conn_s **conn,
 
             idata->avel._present = true;
             idata->acc._present = true;
-          }
+          } else
+            warnx("bad IMU message");
           break;
 
         case 'M': /* motor data */
@@ -261,7 +262,8 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             u16 = ((uint16_t)(*msg++) << 8);
             u16 |= ((uint16_t)(*msg++) << 0);
             rotor_data->state[id].consumption = u16 / 1e3;
-          }
+          } else
+            warnx("bad motor data message");
           break;
 
         case 'B': /* battery data */
@@ -277,7 +279,8 @@ mk_comm_recv(mikrokopter_conn_s **conn,
               (battery->level - battery->min)/(battery->max - battery->min);
             for(i = 0; i < or_rotorcraft_max_rotors; i++)
               rotor_data->state[i].energy_level = p;
-          }
+          } else
+            warnx("bad battery message");
           break;
 
         case 'T': /* clock rate */
@@ -287,8 +290,12 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             if (id < 1 || id > or_rotorcraft_max_rotors) break;
             id--;
             rotor_data->clkrate[id] = *msg;
-          }
+          } else
+            warnx("bad clock rate message");
           break;
+
+        default:
+          warnx("received unknown message");
       }
     }
   }
