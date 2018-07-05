@@ -43,10 +43,10 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   genom_event e;
   size_t i;
 
-  ids->sensor_time.rate = (mikrokopter_ids_sensor_time_s_rate_s){
-    .imu = 1000.,
-    .motor = 100.,
-    .battery = 1.
+  ids->sensor_time = (mikrokopter_ids_sensor_time_s){
+    .imu = { 0 }, .motor = {{ 0 }}, .battery = { 0 },
+    .rate = { .imu = 1000., .motor = 100., .battery = 1. },
+    .measured_rate = { .imu = 0., .motor = 0., .battery = 0. }
   };
   e = mk_set_sensor_rate(
     &ids->sensor_time.rate, NULL, &ids->sensor_time, self);

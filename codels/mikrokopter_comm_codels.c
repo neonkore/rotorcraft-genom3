@@ -155,6 +155,8 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             double v[3];
             uint8_t seq = *msg++;
 
+            if (seq == sensor_time->imu.seq) break;
+
             ts = mk_get_ts(
               seq, tv, sensor_time->rate.imu, &sensor_time->imu);
 
@@ -230,6 +232,7 @@ mk_comm_recv(mikrokopter_conn_s **conn,
 
             if (id < 1 || id > or_rotorcraft_max_rotors) break;
             id--;
+            if (seq == sensor_time->motor[id].seq) break;
 
             if (!rotor_data->state[id].ts.sec && rotor_data->state[id].disabled)
               rotor_data->state[id].disabled = 0;
