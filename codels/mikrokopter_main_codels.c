@@ -146,14 +146,17 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_imu_calibration_s *imu_calibration,
              const mikrokopter_ids_imu_filter_s *imu_filter,
              const mikrokopter_ids_rotor_data_s *rotor_data,
-             const mikrokopter_ids_sensor_time_s *sensor_time,
+             mikrokopter_ids_sensor_time_s *sensor_time,
              bool *imu_calibration_updated, mikrokopter_log_s **log,
              const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
   or_rotorcraft_output *rdata = rotor_measure->data(self);
+  struct timeval tv;
   ssize_t i;
+
+  gettimeofday(&tv, NULL);
 
   /* battery level */
   if (conn && conn->chan[0].fd >= 0) {
@@ -225,6 +228,32 @@ mk_main_perm(const mikrokopter_conn_s *conn,
   imu->write(self);
 
 
+  /* update sensor time */
+  {
+    double rate;
+
+    rate = 1./ (
+      tv.tv_sec - idata->ts.sec +
+      (1 + tv.tv_usec * 1000 - idata->ts.nsec) * 1e-9)	;
+    if (rate < 0.5 * sensor_time->rate.imu) {
+      sensor_time->measured_rate.imu =
+        (99 * sensor_time->measured_rate.imu + rate) / 100.;
+    }
+
+    for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+      if (rotor_data->state[i].disabled) continue;
+
+      rate = 1. / (
+        tv.tv_sec - rotor_data->state[i].ts.sec +
+        (1 + tv.tv_usec * 1000 - rotor_data->state[i].ts.nsec) * 1e-9);
+      if (rate < 0.5 * sensor_time->rate.motor) {
+        sensor_time->measured_rate.motor =
+          (99 * sensor_time->measured_rate.motor + rate) / 100.;
+      }
+    }
+  }
+
+
   /* log */
   if ((*log)->req.aio_fildes >= 0) {
     (*log)->total++;
@@ -245,10 +274,6 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     }
 
     if ((*log)->req.aio_fildes >= 0 && !(*log)->pending) {
-      struct timeval tv;
-
-      gettimeofday(&tv, NULL);
-
       (*log)->req.aio_nbytes = snprintf(
         (*log)->buffer, sizeof((*log)->buffer),
         "%s" mikrokopter_log_line "\n",

@@ -199,7 +199,7 @@ component mikrokopter {
     codel<start> mk_main_init(out ::ids, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
-                             in imu_filter, in rotor_data, in sensor_time,
+                             in imu_filter, in rotor_data, inout sensor_time,
                              inout imu_calibration_updated,
                              inout log, out rotor_measure, out imu)
       yield pause::main;
