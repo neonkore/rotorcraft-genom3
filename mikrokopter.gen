@@ -406,9 +406,9 @@ component mikrokopter {
 
     local double scale;
 
-    codel<start> mk_servo_start(in sensor_time, out scale)
+    codel<start> mk_servo_start(out scale)
       yield main;
-    codel<main> mk_servo_main(in conn, inout rotor_data,
+    codel<main> mk_servo_main(in conn, in sensor_time, inout rotor_data,
                               in rotor_input, in servo, inout scale)
       yield pause::main, stop;
 

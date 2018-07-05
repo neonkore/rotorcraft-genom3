@@ -601,13 +601,9 @@ mk_start_stop(const mikrokopter_conn_s *conn,
  *        mikrokopter_e_rate, mikrokopter_e_input.
  */
 genom_event
-mk_servo_start(const mikrokopter_ids_sensor_time_s *sensor_time,
-               double *scale, const genom_context self)
+mk_servo_start(double *scale, const genom_context self)
 {
-  /* check sensor rate */
-  if (sensor_time->measured_rate.imu < 0.9 * sensor_time->rate.imu ||
-      sensor_time->measured_rate.motor < 0.9 * sensor_time->rate.motor)
-    return mikrokopter_e_rate(self);
+  (void)self;
 
   *scale = 0.;
   return mikrokopter_main;
@@ -622,6 +618,7 @@ mk_servo_start(const mikrokopter_ids_sensor_time_s *sensor_time,
  */
 genom_event
 mk_servo_main(const mikrokopter_conn_s *conn,
+              const mikrokopter_ids_sensor_time_s *sensor_time,
               mikrokopter_ids_rotor_data_s *rotor_data,
               const mikrokopter_rotor_input *rotor_input,
               const mikrokopter_ids_servo_s *servo, double *scale,
@@ -630,6 +627,7 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   or_rotorcraft_input *input_data;
   struct timeval tv;
   genom_event e;
+  int i;
 
   if (!conn) return mikrokopter_e_connection(self);
 
@@ -641,15 +639,43 @@ mk_servo_main(const mikrokopter_conn_s *conn,
 
   or_rotorcraft_rotor_control desired = input_data->desired;
 
-  /* watchdog */
+  /* watchdog on input */
   gettimeofday(&tv, NULL);
   if (tv.tv_sec + 1e-6*tv.tv_usec >
       0.5 + input_data->ts.sec + 1e-9*input_data->ts.nsec) {
-    /* do something smart here, instead of the following */
-    return mikrokopter_stop;
+
+    *scale -= 2e-3 * mikrokopter_control_period_ms / servo->ramp;
+    if (*scale < 0.) {
+      mk_stop(conn, rotor_data->state, self);
+      return mikrokopter_e_input(self);
+    }
   }
 
-  /* linear input scaling for the first servo->ramp seconds */
+  /* check sensor rate */
+  if (sensor_time->measured_rate.imu < 0.9 * sensor_time->rate.imu ||
+      sensor_time->measured_rate.motor < 0.9 * sensor_time->rate.motor) {
+
+    *scale -= 2e-3 * mikrokopter_control_period_ms / servo->ramp;
+    if (*scale < 0.) {
+      mk_stop(conn, rotor_data->state, self);
+      return mikrokopter_e_rate(self);
+    }
+  }
+
+  /* check rotors status */
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (rotor_data->state[i].disabled) continue;
+    if (rotor_data->state[i].emerg || !rotor_data->state[i].spinning) {
+      mikrokopter_e_rotor_failure_detail e;
+
+      mk_stop(conn, rotor_data->state, self);
+      e.id = 1 + i;
+      return mikrokopter_e_rotor_failure(&e, self);
+    }
+  }
+
+  /* linear input scaling for the first servo->ramp seconds or in case of
+   * emergency */
   if (*scale < 1.) {
     size_t i;
     for(i = 0; i < input_data->desired._length; i++)
