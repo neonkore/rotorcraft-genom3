@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 LAAS/CNRS
+ * Copyright (c) 2015-2019 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -295,6 +295,9 @@ mk_comm_recv(mikrokopter_conn_s **conn,
             rotor_data->clkrate[id] = *msg;
           } else
             warnx("bad clock rate message");
+          break;
+
+        case '?': /* ignored messages */
           break;
 
         default:
