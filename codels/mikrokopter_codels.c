@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 LAAS/CNRS
+ * Copyright (c) 2015-2019 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -63,9 +63,9 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
     sensor_time->battery.ts = 0.;
     sensor_time->battery.offset = -DBL_MAX;
 
-    sensor_time->measured_rate.imu = 0.;
-    sensor_time->measured_rate.motor = 0.;
-    sensor_time->measured_rate.battery = 0.;
+    sensor_time->measured_rate.imu = rate->imu;
+    sensor_time->measured_rate.motor = rate->motor;
+    sensor_time->measured_rate.battery = rate->battery;
   }
 
   /* reconfigure existing connection */
