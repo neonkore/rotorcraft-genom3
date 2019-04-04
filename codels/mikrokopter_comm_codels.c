@@ -502,8 +502,13 @@ mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
   if (timings->ts - ts > timings->offset)
     timings->offset = timings->ts - ts;
 
-  /* local timestamp */
-  ts = timings->ts - timings->offset;
+  /* local timestamp - reset offset if it diverged too much from realtime,
+   * maybe the sensor is not sending at the specified rate */
+  if (ts - (timings->ts - timings->offset) > 2. / rate)
+    timings->offset = timings->ts - ts;
+  else
+    ts = timings->ts - timings->offset;
+
   atv.sec = floor(ts);
   atv.nsec = (ts - atv.sec) * 1e9;
   return atv;
