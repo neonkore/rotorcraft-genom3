@@ -48,6 +48,9 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
     .rate = { .imu = 1000., .motor = 100., .battery = 1. },
     .measured_rate = { .imu = 0., .motor = 0., .battery = 0. }
   };
+  ids->publish_time = (mikrokopter_ids_publish_time_s){
+    .imu = { 0 }, .motor = {{ 0 }}
+  };
   e = mk_set_sensor_rate(
     &ids->sensor_time.rate, NULL, &ids->sensor_time, self);
   if (e) return e;
@@ -147,6 +150,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
              const mikrokopter_ids_imu_filter_s *imu_filter,
              const mikrokopter_ids_rotor_data_s *rotor_data,
              mikrokopter_ids_sensor_time_s *sensor_time,
+             mikrokopter_ids_publish_time_s *publish_time,
              bool *imu_calibration_updated, mikrokopter_log_s **log,
              const mikrokopter_rotor_measure *rotor_measure,
              const mikrokopter_imu *imu, const genom_context self)
@@ -218,14 +222,28 @@ mk_main_perm(const mikrokopter_conn_s *conn,
   }
 
 
-  /* publish */
+  /* publish, only if timestamps changed */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     rdata->rotor._buffer[i] = rotor_data->state[i];
     if (!rotor_data->state[i].disabled)
       rdata->rotor._length = i + 1;
   }
-  rotor_measure->write(self);
-  imu->write(self);
+
+  for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+    if (publish_time->motor[i].sec != rotor_data->state[i].ts.sec ||
+        publish_time->motor[i].nsec != rotor_data->state[i].ts.nsec) {
+      rotor_measure->write(self);
+      for(; i < or_rotorcraft_max_rotors; i++)
+        publish_time->motor[i] = rotor_data->state[i].ts;
+      break;
+    }
+  }
+
+  if (publish_time->imu.sec != idata->ts.sec ||
+      publish_time->imu.nsec != idata->ts.nsec) {
+    imu->write(self);
+    publish_time->imu = idata->ts;
+  }
 
 
   /* update sensor time */

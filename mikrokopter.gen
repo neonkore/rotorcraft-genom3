@@ -68,6 +68,10 @@ component mikrokopter {
       } rate, measured_rate;
     } sensor_time;
 
+    struct publish_time_s {
+      or::time::ts imu, motor[or_rotorcraft::max_rotors];
+    } publish_time;
+
     /* battery data */
     struct battery_s {
       double min, max;
@@ -199,7 +203,8 @@ component mikrokopter {
     codel<start> mk_main_init(out ::ids, in imu)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
-                             in imu_filter, in rotor_data, inout sensor_time,
+                             in imu_filter, in rotor_data,
+                             inout sensor_time, inout publish_time,
                              inout imu_calibration_updated,
                              inout log, out rotor_measure, out imu)
       yield pause::main;
