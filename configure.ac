@@ -18,7 +18,7 @@ dnl
 
 AC_PREREQ(2.59)
 
-AC_INIT([mikrokopter-genom3],[2.0],[openrobots@laas.fr])
+AC_INIT([mikrokopter-genom3],[2.0.1],[openrobots@laas.fr])
 AC_CONFIG_MACRO_DIR([autoconf])
 AC_CONFIG_AUX_DIR([autoconf])
 AC_CONFIG_HEADERS([autoconf/acmikrokopter.h])

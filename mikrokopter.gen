@@ -20,7 +20,7 @@
 #include "or/robot/rotorcraft.gen"
 
 component mikrokopter {
-  version		"2.0";
+  version		"2.0.1";
   email			"openrobots@laas.fr";
   lang			"c";
   require		"genom3 >= 2.99.30";
