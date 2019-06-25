@@ -10,6 +10,7 @@ idldir=@datadir@/idl
 Name: mikrokopter-genom3
 Description: mikrokopter interface and codels library
 Version: @PACKAGE_VERSION@
-Requires: openrobots2-idl >= 2.0, genom3 >= 2.99.30, eigen3
+Requires: openrobots2-idl >= 2.0 genom3 >= 2.99.30
 Cflags: -I${includedir} -I${idldir}
 Libs: -L${libdir} -lmikrokopter_codels
+Libs.private: @codels_requires_LIBS@

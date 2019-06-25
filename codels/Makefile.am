@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015-2018 LAAS/CNRS
+# Copyright (c) 2015-2019 LAAS/CNRS
 # All rights reserved.
 #
 # Redistribution and use  in source  and binary  forms,  with or without
@@ -27,6 +27,8 @@ libmikrokopter_codels_la_SOURCES+=	codels.h
 
 libmikrokopter_codels_la_CPPFLAGS=	$(requires_CFLAGS)
 libmikrokopter_codels_la_LDFLAGS=	$(requires_LIBS)
+libmikrokopter_codels_la_CPPFLAGS+=	$(codels_requires_CFLAGS)
+libmikrokopter_codels_la_LDFLAGS+=	$(codels_requires_LIBS)
 libmikrokopter_codels_la_LDFLAGS+=	-release $(PACKAGE_VERSION)
 
 libmikrokopter_codels_la_CPPFLAGS+=	$(libudev_CFLAGS)
