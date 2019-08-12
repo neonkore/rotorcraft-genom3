@@ -67,6 +67,7 @@ mk_open_tty(const char *device, uint32_t speed)
 # define B2000000 2000000U
 #endif
   switch(speed) {
+    case 0:		break;
     case 57600:		baud = B57600; break;
     case 115200:	baud = B115200; break;
     case 500000:	baud = B500000; break;
@@ -97,8 +98,10 @@ mk_open_tty(const char *device, uint32_t speed)
   t.c_cc[VMIN] = 0;
   t.c_cc[VTIME] = 0;
 
-  if (cfsetospeed(&t, baud)) return -1;
-  if (cfsetispeed(&t, baud)) return -1;
+  if (speed) {
+    if (cfsetospeed(&t, baud)) return -1;
+    if (cfsetispeed(&t, baud)) return -1;
+  }
 
   if (tcsetattr(fd, TCSANOW, &t)) return -1;
 

@@ -237,7 +237,7 @@ component rotorcraft {
 
   activity connect(
     in string<64> serial = "/dev/ttyUSB0" :"Serial device",
-    in unsigned long baud = 0 :"Baud rate") {
+    in unsigned long baud = 0 :"Baud rate (0 = don't change)") {
 
     doc		"Connect to the hardware";
     task	comm;
