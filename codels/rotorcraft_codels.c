@@ -14,7 +14,7 @@
  *
  *					Anthony Mallet on Fri Feb 13 2015
  */
-#include "acmikrokopter.h"
+#include "acrotorcraft.h"
 
 #include <sys/time.h>
 #include <fcntl.h>
@@ -24,7 +24,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "mikrokopter_c_types.h"
+#include "rotorcraft_c_types.h"
 #include "codels.h"
 
 
@@ -36,9 +36,9 @@
  * Throws .
  */
 genom_event
-mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
-                   const mikrokopter_conn_s *conn,
-                   mikrokopter_ids_sensor_time_s *sensor_time,
+mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
+                   const rotorcraft_conn_s *conn,
+                   rotorcraft_ids_sensor_time_s *sensor_time,
                    const genom_context self)
 {
   int mainc, auxc;
@@ -48,7 +48,7 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
   if (rate->imu < 0. || rate->imu > 2000. ||
       rate->motor < 0. || rate->motor > 2000. ||
       rate->battery < 0. || rate->battery > 2000.)
-    return mikrokopter_e_range(self);
+    return rotorcraft_e_range(self);
 
   if (sensor_time) {
     sensor_time->imu.seq = 0;
@@ -91,14 +91,14 @@ mk_set_sensor_rate(const mikrokopter_ids_sensor_time_s_rate_s *rate,
 /** Validation codel mk_set_battery_limits of attribute set_battery_limits.
  *
  * Returns genom_ok.
- * Throws mikrokopter_e_range.
+ * Throws rotorcraft_e_range.
  */
 genom_event
 mk_set_battery_limits(double min, double max,
                       const genom_context self)
 {
-  if (min < 0.) return mikrokopter_e_range(self);
-  if (min >= max - 1e-2) return mikrokopter_e_range(self);
+  if (min < 0.) return rotorcraft_e_range(self);
+  if (min >= max - 1e-2) return rotorcraft_e_range(self);
   return genom_ok;
 }
 
@@ -129,13 +129,13 @@ mk_set_imu_calibration(bool *imu_calibration_updated,
  * Throws .
  */
 genom_event
-mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
+mk_set_imu_filter(const rotorcraft_ids_imu_filter_s *imu_filter,
                   const genom_context self)
 {
   (void)self;
 
   if (imu_filter->enable)
-    mk_imu_iirf_init(1000. / mikrokopter_control_period_ms,
+    mk_imu_iirf_init(1000. / rotorcraft_control_period_ms,
                      imu_filter->gain, imu_filter->Q, 15, 143);
   return genom_ok;
 }
@@ -146,14 +146,14 @@ mk_set_imu_filter(const mikrokopter_ids_imu_filter_s *imu_filter,
 /** Validation codel mk_validate_input of function set_velocity.
  *
  * Returns genom_ok.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure.
  */
 genom_event
 mk_validate_input(const or_rotorcraft_rotor_state state[8],
                   or_rotorcraft_rotor_control *desired,
                   const genom_context self)
 {
-  mikrokopter_e_rotor_failure_detail e;
+  rotorcraft_e_rotor_failure_detail e;
   size_t i, l;
 
   /* check rotors status */
@@ -161,7 +161,7 @@ mk_validate_input(const or_rotorcraft_rotor_state state[8],
     if (state[i].disabled) continue;
     if (state[i].emerg) {
       e.id = 1 + i;
-      return mikrokopter_e_rotor_failure(&e, self);
+      return rotorcraft_e_rotor_failure(&e, self);
     }
   }
 
@@ -178,7 +178,7 @@ mk_validate_input(const or_rotorcraft_rotor_state state[8],
 /** Validation codel mk_validate_input of function set_throttle.
  *
  * Returns genom_ok.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure.
  */
 /* already defined in service set_velocity validation */
 
@@ -191,14 +191,14 @@ mk_validate_input(const or_rotorcraft_rotor_state state[8],
  * Returns genom_ok.
  */
 genom_event
-mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
+mk_disable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
                  or_rotorcraft_rotor_state state[8],
                  const genom_context self)
 {
   struct timeval tv;
 
   if (motor < 1 || motor > or_rotorcraft_max_rotors)
-    return mikrokopter_e_range(self);
+    return rotorcraft_e_range(self);
 
   gettimeofday(&tv, NULL);
   state[motor - 1] = (or_rotorcraft_rotor_state){
@@ -221,14 +221,14 @@ mk_disable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
  * Returns genom_ok.
  */
 genom_event
-mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
+mk_enable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
                 or_rotorcraft_rotor_state state[8],
                 const genom_context self)
 {
   struct timeval tv;
 
   if (motor < 1 || motor > or_rotorcraft_max_rotors)
-    return mikrokopter_e_range(self);
+    return rotorcraft_e_range(self);
 
   gettimeofday(&tv, NULL);
   state[motor - 1] = (or_rotorcraft_rotor_state){
@@ -256,11 +256,11 @@ mk_enable_motor(uint16_t motor, const mikrokopter_conn_s *conn,
 /** Codel mk_set_velocity of function set_velocity.
  *
  * Returns genom_ok.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure.
  */
 genom_event
-mk_set_velocity(const mikrokopter_conn_s *conn,
-                mikrokopter_ids_rotor_data_s *rotor_data,
+mk_set_velocity(const rotorcraft_conn_s *conn,
+                rotorcraft_ids_rotor_data_s *rotor_data,
                 const or_rotorcraft_rotor_control *desired,
                 const genom_context self)
 {
@@ -292,11 +292,11 @@ mk_set_velocity(const mikrokopter_conn_s *conn,
 /** Codel mk_set_throttle of function set_throttle.
  *
  * Returns genom_ok.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure.
  */
 genom_event
-mk_set_throttle(const mikrokopter_conn_s *conn,
-                mikrokopter_ids_rotor_data_s *rotor_data,
+mk_set_throttle(const rotorcraft_conn_s *conn,
+                rotorcraft_ids_rotor_data_s *rotor_data,
                 const or_rotorcraft_rotor_control *desired,
                 const genom_context self)
 {
@@ -328,11 +328,11 @@ mk_set_throttle(const mikrokopter_conn_s *conn,
 /** Codel mk_log_start of function log.
  *
  * Returns genom_ok.
- * Throws mikrokopter_e_sys.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
 mk_log_start(const char path[64], uint32_t decimation,
-             mikrokopter_log_s **log, const genom_context self)
+             rotorcraft_log_s **log, const genom_context self)
 {
   int fd;
 
@@ -340,7 +340,7 @@ mk_log_start(const char path[64], uint32_t decimation,
   if (fd < 0) return mk_e_sys_error(path, self);
 
   if (write(
-        fd, mikrokopter_log_header "\n", sizeof(mikrokopter_log_header)) < 0)
+        fd, rotorcraft_log_header "\n", sizeof(rotorcraft_log_header)) < 0)
     return mk_e_sys_error(path, self);
 
   if ((*log)->req.aio_fildes >= 0) {
@@ -368,7 +368,7 @@ mk_log_start(const char path[64], uint32_t decimation,
  * Returns genom_ok.
  */
 genom_event
-mk_log_stop(mikrokopter_log_s **log, const genom_context self)
+mk_log_stop(rotorcraft_log_s **log, const genom_context self)
 {
   (void)self; /* -Wunused-parameter */
 
@@ -387,7 +387,7 @@ mk_log_stop(mikrokopter_log_s **log, const genom_context self)
  * Returns genom_ok.
  */
 genom_event
-mk_log_info(const mikrokopter_log_s *log, uint32_t *miss,
+mk_log_info(const rotorcraft_log_s *log, uint32_t *miss,
             uint32_t *total, const genom_context self)
 {
   (void)self; /* -Wunused-parameter */

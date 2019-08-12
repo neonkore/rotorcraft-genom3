@@ -14,7 +14,7 @@
  *
  *					Anthony Mallet on Fri Feb 13 2015
  */
-#include "acmikrokopter.h"
+#include "acrotorcraft.h"
 
 #include <sys/time.h>
 
@@ -31,24 +31,24 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "mikrokopter_c_types.h"
+#include "rotorcraft_c_types.h"
 #include "codels.h"
 
 
 static or_time_ts	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
-                                  mikrokopter_ids_sensor_time_s_ts_s *timings);
+                                  rotorcraft_ids_sensor_time_s_ts_s *timings);
 
 
 /* --- Task comm -------------------------------------------------------- */
 
 /** Codel mk_comm_start of task comm.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_poll.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_poll.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_comm_start(mikrokopter_conn_s **conn, const genom_context self)
+mk_comm_start(rotorcraft_conn_s **conn, const genom_context self)
 {
   size_t i;
 
@@ -60,43 +60,43 @@ mk_comm_start(mikrokopter_conn_s **conn, const genom_context self)
     (*conn)->chan[i].r = (*conn)->chan[i].w = 0;
   }
 
-  return mikrokopter_poll;
+  return rotorcraft_poll;
 }
 
 
 /** Codel mk_comm_poll of task comm.
  *
- * Triggered by mikrokopter_poll.
- * Yields to mikrokopter_nodata, mikrokopter_recv.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_poll.
+ * Yields to rotorcraft_nodata, rotorcraft_recv.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_comm_poll(const mikrokopter_conn_s *conn, const genom_context self)
+mk_comm_poll(const rotorcraft_conn_s *conn, const genom_context self)
 {
   int s;
 
   s = mk_wait_msg(conn->chan, mk_channels());
   if (s < 0) {
     if (errno != EINTR) return mk_e_sys_error(NULL, self);
-    return mikrokopter_nodata;
+    return rotorcraft_nodata;
   }
-  else if (s == 0) return mikrokopter_nodata;
+  else if (s == 0) return rotorcraft_nodata;
 
-  return mikrokopter_recv;
+  return rotorcraft_recv;
 }
 
 
 /** Codel mk_comm_nodata of task comm.
  *
- * Triggered by mikrokopter_nodata.
- * Yields to mikrokopter_poll.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_nodata.
+ * Yields to rotorcraft_poll.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_comm_nodata(mikrokopter_conn_s **conn,
-               mikrokopter_ids_sensor_time_s *sensor_time,
-               const mikrokopter_imu *imu,
-               mikrokopter_ids_battery_s *battery,
+mk_comm_nodata(rotorcraft_conn_s **conn,
+               rotorcraft_ids_sensor_time_s *sensor_time,
+               const rotorcraft_imu *imu,
+               rotorcraft_ids_battery_s *battery,
                const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
@@ -113,23 +113,23 @@ mk_comm_nodata(mikrokopter_conn_s **conn,
   if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
     mk_disconnect_start(conn, self);
 
-  return mikrokopter_poll;
+  return rotorcraft_poll;
 }
 
 
 /** Codel mk_comm_recv of task comm.
  *
- * Triggered by mikrokopter_recv.
- * Yields to mikrokopter_poll, mikrokopter_recv.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_recv.
+ * Yields to rotorcraft_poll, rotorcraft_recv.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_comm_recv(mikrokopter_conn_s **conn,
-             const mikrokopter_ids_imu_calibration_s *imu_calibration,
-             mikrokopter_ids_sensor_time_s *sensor_time,
-             const mikrokopter_imu *imu,
-             mikrokopter_ids_rotor_data_s *rotor_data,
-             mikrokopter_ids_battery_s *battery,
+mk_comm_recv(rotorcraft_conn_s **conn,
+             const rotorcraft_ids_imu_calibration_s *imu_calibration,
+             rotorcraft_ids_sensor_time_s *sensor_time,
+             const rotorcraft_imu *imu,
+             rotorcraft_ids_rotor_data_s *rotor_data,
+             rotorcraft_ids_battery_s *battery,
              const genom_context self)
 {
   struct timeval tv;
@@ -305,28 +305,28 @@ mk_comm_recv(mikrokopter_conn_s **conn,
     }
   }
 
-  return more ? mikrokopter_recv : mikrokopter_poll;
+  return more ? rotorcraft_recv : rotorcraft_poll;
 }
 
 
 /** Codel mk_comm_stop of task comm.
  *
- * Triggered by mikrokopter_stop.
- * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_stop.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_comm_stop(mikrokopter_conn_s **conn, const genom_context self)
+mk_comm_stop(rotorcraft_conn_s **conn, const genom_context self)
 {
-  if (!*conn) return mikrokopter_ether;
+  if (!*conn) return rotorcraft_ether;
 
   mk_send_msg(&(*conn)->chan[0], "x");
   mk_set_sensor_rate(
-    &(struct mikrokopter_ids_sensor_time_s_rate_s){
+    &(struct rotorcraft_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
         }, *conn, NULL, self);
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -334,14 +334,14 @@ mk_comm_stop(mikrokopter_conn_s **conn, const genom_context self)
 
 /** Codel mk_connect_start of activity connect.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_sys, mikrokopter_e_baddev.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys, rotorcraft_e_baddev.
  */
 genom_event
 mk_connect_start(const char serial[2][64], uint32_t baud,
-                 mikrokopter_conn_s **conn,
-                 mikrokopter_ids_sensor_time_s *sensor_time,
+                 rotorcraft_conn_s **conn,
+                 rotorcraft_ids_sensor_time_s *sensor_time,
                  const genom_context self)
 {
   static const char magic[] = "[?]*[ml][ky][bfm][lu]1.8*";
@@ -393,12 +393,12 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
         errno = ENOMSG;
         return mk_e_sys_error(NULL, self);
       } else {
-        mikrokopter_e_baddev_detail d;
+        rotorcraft_e_baddev_detail d;
         snprintf(d.dev, sizeof(d.dev), "device is `%s' instead of `%s'",
                  (*conn)->chan[i].msg, magic);
         close((*conn)->chan[i].fd);
         (*conn)->chan[i].fd = -1;
-        return mikrokopter_e_baddev(&d, self);
+        return rotorcraft_e_baddev(&d, self);
       }
     }
 
@@ -410,7 +410,7 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
   /* configure data streaming */
   mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self);
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -418,19 +418,19 @@ mk_connect_start(const char serial[2][64], uint32_t baud,
 
 /** Codel mk_disconnect_start of activity disconnect.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_disconnect_start(mikrokopter_conn_s **conn,
+mk_disconnect_start(rotorcraft_conn_s **conn,
                     const genom_context self)
 {
   size_t i;
 
   mk_send_msg(&(*conn)->chan[0], "x");
   mk_set_sensor_rate(
-    &(struct mikrokopter_ids_sensor_time_s_rate_s){
+    &(struct rotorcraft_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
         }, *conn, NULL, self);
 
@@ -442,7 +442,7 @@ mk_disconnect_start(mikrokopter_conn_s **conn,
     (*conn)->chan[i].fd = -1;
   }
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -450,12 +450,12 @@ mk_disconnect_start(mikrokopter_conn_s **conn,
 
 /** Codel mk_monitor_check of activity monitor.
  *
- * Triggered by mikrokopter_start, mikrokopter_sleep.
- * Yields to mikrokopter_pause_sleep, mikrokopter_ether.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_start, rotorcraft_sleep.
+ * Yields to rotorcraft_pause_sleep, rotorcraft_ether.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_monitor_check(const mikrokopter_conn_s *conn,
+mk_monitor_check(const rotorcraft_conn_s *conn,
                  const genom_context self)
 {
   size_t i;
@@ -463,9 +463,9 @@ mk_monitor_check(const mikrokopter_conn_s *conn,
   (void)self;
 
   for(i = 0; i < mk_channels(); i++)
-    if (conn->chan[i].fd >= 0) return mikrokopter_pause_sleep;
+    if (conn->chan[i].fd >= 0) return rotorcraft_pause_sleep;
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -476,7 +476,7 @@ mk_monitor_check(const mikrokopter_conn_s *conn,
  * 2010 IEEE/RSJ */
 static or_time_ts
 mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
-          mikrokopter_ids_sensor_time_s_ts_s *timings)
+          rotorcraft_ids_sensor_time_s_ts_s *timings)
 {
   or_time_ts atv;
   double ts;

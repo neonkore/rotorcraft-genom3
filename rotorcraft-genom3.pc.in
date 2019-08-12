@@ -1,4 +1,4 @@
-# pkg-config file for mikrokopter interface and codels library
+# pkg-config file for rotorcraft interface and codels library
 #
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -7,10 +7,10 @@ includedir=@includedir@
 datarootdir=@datarootdir@
 idldir=@datadir@/idl
 
-Name: mikrokopter-genom3
-Description: mikrokopter interface and codels library
+Name: rotorcraft-genom3
+Description: rotorcraft interface and codels library
 Version: @PACKAGE_VERSION@
-Requires: openrobots2-idl >= 2.0 genom3 >= 2.99.30
+Requires: openrobots2-idl >= 2.0, genom3 >= 2.99.30
 Cflags: -I${includedir} -I${idldir}
-Libs: -L${libdir} -lmikrokopter_codels
+Libs: -L${libdir} -lrotorcraft_codels
 Libs.private: @codels_requires_LIBS@

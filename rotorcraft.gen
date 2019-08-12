@@ -19,14 +19,14 @@
 #include "or/pose/pose_estimator.gen"
 #include "or/robot/rotorcraft.gen"
 
-component mikrokopter {
-  version		"2.0.1";
+component rotorcraft {
+  version		"3.0";
   email			"openrobots@laas.fr";
   lang			"c";
   require		"genom3 >= 2.99.30";
   codels-require	"eigen3";
 
-  doc "Control mikrokopter multi-rotor UAVs.";
+  doc "Control multi-rotor UAVs using the telekyb3 protocol.";
 
   provides	or_rotorcraft;
   uses		or_pose_estimator;
@@ -458,7 +458,7 @@ component mikrokopter {
 
   /* --- logging ----------------------------------------------------------- */
 
-  function log(in string<64> path = "/tmp/mikrokopter.log": "Log file name",
+  function log(in string<64> path = "/tmp/rotorcraft.log": "Log file name",
                in unsigned long decimation = 1: "Reduced logging frequency") {
     doc		"Log IMU and commanded wrench";
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 LAAS/CNRS
+ * Copyright (c) 2015-2019 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -14,7 +14,7 @@
  *
  *                                      Anthony Mallet on Wed Jan 27 2016
  */
-#include "acmikrokopter.h"
+#include "acrotorcraft.h"
 
 #include <cfloat>
 #include <iostream>

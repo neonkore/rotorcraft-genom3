@@ -14,7 +14,7 @@
  *
  *					Anthony Mallet on Fri Feb 13 2015
  */
-#include "acmikrokopter.h"
+#include "acrotorcraft.h"
 
 #include <sys/time.h>
 #include <err.h>
@@ -22,7 +22,7 @@
 #include <math.h>
 #include <unistd.h>
 
-#include "mikrokopter_c_types.h"
+#include "rotorcraft_c_types.h"
 #include "codels.h"
 
 
@@ -33,22 +33,22 @@ static struct mk_iir_filter Hax, Hay, Haz, Hwx, Hwy, Hwz;
 
 /** Codel mk_main_init of task main.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_main.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_main.
  */
 genom_event
-mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
+mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
              const genom_context self)
 {
   genom_event e;
   size_t i;
 
-  ids->sensor_time = (mikrokopter_ids_sensor_time_s){
+  ids->sensor_time = (rotorcraft_ids_sensor_time_s){
     .imu = { 0 }, .motor = {{ 0 }}, .battery = { 0 },
     .rate = { .imu = 1000., .motor = 100., .battery = 1. },
     .measured_rate = { .imu = 0., .motor = 0., .battery = 0. }
   };
-  ids->publish_time = (mikrokopter_ids_publish_time_s){
+  ids->publish_time = (rotorcraft_ids_publish_time_s){
     .imu = { 0 }, .motor = {{ 0 }}
   };
   e = mk_set_sensor_rate(
@@ -59,7 +59,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   ids->battery.max = 16.8;
   ids->battery.level = 0.;
 
-  ids->imu_calibration = (mikrokopter_ids_imu_calibration_s){
+  ids->imu_calibration = (rotorcraft_ids_imu_calibration_s){
     .gscale = {
       1., 0., 0.,
       0., 1., 0.,
@@ -99,7 +99,7 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
   /* init logging */
   ids->log = malloc(sizeof(*ids->log));
   if (!ids->log) abort();
-  *ids->log = (mikrokopter_log_s){
+  *ids->log = (rotorcraft_log_s){
     .req = {
       .aio_fildes = -1,
       .aio_offset = 0,
@@ -134,26 +134,26 @@ mk_main_init(mikrokopter_ids *ids, const mikrokopter_imu *imu,
     .aacc_cov._present = false
   };
 
-  return mikrokopter_main;
+  return rotorcraft_main;
 }
 
 
 /** Codel mk_main_perm of task main.
  *
- * Triggered by mikrokopter_main.
- * Yields to mikrokopter_pause_main.
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_pause_main.
  */
 genom_event
-mk_main_perm(const mikrokopter_conn_s *conn,
-             const mikrokopter_ids_battery_s *battery,
-             const mikrokopter_ids_imu_calibration_s *imu_calibration,
-             const mikrokopter_ids_imu_filter_s *imu_filter,
-             const mikrokopter_ids_rotor_data_s *rotor_data,
-             mikrokopter_ids_sensor_time_s *sensor_time,
-             mikrokopter_ids_publish_time_s *publish_time,
-             bool *imu_calibration_updated, mikrokopter_log_s **log,
-             const mikrokopter_rotor_measure *rotor_measure,
-             const mikrokopter_imu *imu, const genom_context self)
+mk_main_perm(const rotorcraft_conn_s *conn,
+             const rotorcraft_ids_battery_s *battery,
+             const rotorcraft_ids_imu_calibration_s *imu_calibration,
+             const rotorcraft_ids_imu_filter_s *imu_filter,
+             const rotorcraft_ids_rotor_data_s *rotor_data,
+             rotorcraft_ids_sensor_time_s *sensor_time,
+             rotorcraft_ids_publish_time_s *publish_time,
+             bool *imu_calibration_updated, rotorcraft_log_s **log,
+             const rotorcraft_rotor_measure *rotor_measure,
+             const rotorcraft_imu *imu, const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
   or_rotorcraft_output *rdata = rotor_measure->data(self);
@@ -291,7 +291,7 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     if ((*log)->req.aio_fildes >= 0 && !(*log)->pending) {
       (*log)->req.aio_nbytes = snprintf(
         (*log)->buffer, sizeof((*log)->buffer),
-        "%s" mikrokopter_log_line "\n",
+        "%s" rotorcraft_log_line "\n",
         (*log)->skipped ? "\n" : "",
         (uint64_t)tv.tv_sec, (uint32_t)tv.tv_usec * 1000,
         sensor_time->measured_rate.imu, sensor_time->measured_rate.motor,
@@ -322,22 +322,22 @@ mk_main_perm(const mikrokopter_conn_s *conn,
     }
   }
 
-  return mikrokopter_pause_main;
+  return rotorcraft_pause_main;
 }
 
 
 /** Codel mk_main_stop of task main.
  *
- * Triggered by mikrokopter_stop.
- * Yields to mikrokopter_ether.
+ * Triggered by rotorcraft_stop.
+ * Yields to rotorcraft_ether.
  */
 genom_event
-mk_main_stop(mikrokopter_log_s **log, const genom_context self)
+mk_main_stop(rotorcraft_log_s **log, const genom_context self)
 {
   mk_log_stop(log, self);
   if (*log) free(*log);
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -345,9 +345,9 @@ mk_main_stop(mikrokopter_log_s **log, const genom_context self)
 
 /** Codel mk_calibrate_imu_start of activity calibrate_imu.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_collect.
- * Throws mikrokopter_e_sys, mikrokopter_e_connection.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_collect.
+ * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
 mk_calibrate_imu_start(double tstill, uint16_t nposes,
@@ -356,7 +356,7 @@ mk_calibrate_imu_start(double tstill, uint16_t nposes,
   uint32_t sps;
   int s;
 
-  sps = 1000/mikrokopter_control_period_ms;
+  sps = 1000/rotorcraft_control_period_ms;
   s = mk_calibration_init(tstill * sps, nposes, sps);
   if (s) {
     errno = s;
@@ -364,17 +364,17 @@ mk_calibrate_imu_start(double tstill, uint16_t nposes,
   }
 
   warnx("calibration started");
-  return mikrokopter_collect;
+  return rotorcraft_collect;
 }
 
 /** Codel mk_calibrate_imu_collect of activity calibrate_imu.
  *
- * Triggered by mikrokopter_collect.
- * Yields to mikrokopter_pause_collect, mikrokopter_main.
- * Throws mikrokopter_e_sys, mikrokopter_e_connection.
+ * Triggered by rotorcraft_collect.
+ * Yields to rotorcraft_pause_collect, rotorcraft_main.
+ * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_imu_collect(const mikrokopter_imu *imu,
+mk_calibrate_imu_collect(const rotorcraft_imu *imu,
                          const genom_context self)
 {
   int32_t still;
@@ -389,7 +389,7 @@ mk_calibrate_imu_collect(const mikrokopter_imu *imu,
         warnx("stay still");
       else if (still > 0)
         warnx("calibration acquired pose %d", still);
-      return mikrokopter_pause_collect;
+      return rotorcraft_pause_collect;
 
     default:
       warnx("calibration aborted");
@@ -399,17 +399,17 @@ mk_calibrate_imu_collect(const mikrokopter_imu *imu,
   }
 
   warnx("calibration acquired all poses");
-  return mikrokopter_main;
+  return rotorcraft_main;
 }
 
 /** Codel mk_calibrate_imu_main of activity calibrate_imu.
  *
- * Triggered by mikrokopter_main.
- * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_sys, mikrokopter_e_connection.
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_imu_main(mikrokopter_ids_imu_calibration_s *imu_calibration,
+mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
                       bool *imu_calibration_updated,
                       const genom_context self)
 {
@@ -439,7 +439,7 @@ mk_calibrate_imu_main(mikrokopter_ids_imu_calibration_s *imu_calibration,
         maxw[0] * 180./M_PI, maxw[1] * 180./M_PI, maxw[2] * 180./M_PI);
 
   *imu_calibration_updated = true;
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -447,9 +447,9 @@ mk_calibrate_imu_main(mikrokopter_ids_imu_calibration_s *imu_calibration,
 
 /** Codel mk_set_zero_start of activity set_zero.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_collect.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_collect.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
 mk_set_zero_start(double accum[3], double gycum[3], uint32_t *n,
@@ -460,17 +460,17 @@ mk_set_zero_start(double accum[3], double gycum[3], uint32_t *n,
   gycum[0] = gycum[1] = gycum[2] = 0.;
   accum[0] = accum[1] = accum[2] = 0.;
   *n = 0;
-  return mikrokopter_collect;
+  return rotorcraft_collect;
 }
 
 /** Codel mk_set_zero_collect of activity set_zero.
  *
- * Triggered by mikrokopter_collect.
- * Yields to mikrokopter_pause_collect, mikrokopter_main.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_collect.
+ * Yields to rotorcraft_pause_collect, rotorcraft_main.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_set_zero_collect(const mikrokopter_imu *imu, double accum[3],
+mk_set_zero_collect(const rotorcraft_imu *imu, double accum[3],
                     double gycum[3], uint32_t *n,
                     const genom_context self)
 {
@@ -489,18 +489,18 @@ mk_set_zero_collect(const mikrokopter_imu *imu, double accum[3],
   accum[1] = (*n * accum[1] + imu_data->acc._value.ay) / (1 + *n);
   accum[2] = (*n * accum[2] + imu_data->acc._value.az) / (1 + *n);
 
-  return ((*n)++ < 2000.) ? mikrokopter_pause_collect : mikrokopter_main;
+  return ((*n)++ < 2000.) ? rotorcraft_pause_collect : rotorcraft_main;
 }
 
 /** Codel mk_set_zero of activity set_zero.
  *
- * Triggered by mikrokopter_main.
- * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_sys.
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys.
  */
 genom_event
 mk_set_zero(double accum[3], double gycum[3],
-            mikrokopter_ids_imu_calibration_s *imu_calibration,
+            rotorcraft_ids_imu_calibration_s *imu_calibration,
             bool *imu_calibration_updated, const genom_context self)
 {
   double roll, pitch;
@@ -522,7 +522,7 @@ mk_set_zero(double accum[3], double gycum[3],
   mk_calibration_rotate(r, imu_calibration->ascale);
 
   *imu_calibration_updated = true;
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -530,23 +530,22 @@ mk_set_zero(double accum[3], double gycum[3],
 
 /** Codel mk_start_start of activity start.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_pause_start, mikrokopter_monitor.
- * Throws mikrokopter_e_connection, mikrokopter_e_started,
- *        mikrokopter_e_rotor_failure,
- *        mikrokopter_e_rotor_not_disabled.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_pause_start, rotorcraft_monitor.
+ * Throws rotorcraft_e_connection, rotorcraft_e_started,
+ *        rotorcraft_e_rotor_failure, rotorcraft_e_rotor_not_disabled.
  */
 genom_event
-mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
+mk_start_start(const rotorcraft_conn_s *conn, uint16_t *state,
                const or_rotorcraft_rotor_state rotor_state[8],
                const genom_context self)
 {
   size_t i;
 
-  if (!conn) return mikrokopter_e_connection(self);
+  if (!conn) return rotorcraft_e_connection(self);
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) continue;
-    if (rotor_state[i].spinning) return mikrokopter_e_started(self);
+    if (rotor_state[i].spinning) return rotorcraft_e_started(self);
   }
 
   *state = 0;
@@ -555,27 +554,26 @@ mk_start_start(const mikrokopter_conn_s *conn, uint16_t *state,
     mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
 
     /* wait until motor have cleared any emergency flag */
-    if (rotor_state[i].emerg) return mikrokopter_pause_start;
+    if (rotor_state[i].emerg) return rotorcraft_pause_start;
   }
 
-  return mikrokopter_monitor;
+  return rotorcraft_monitor;
 }
 
 /** Codel mk_start_monitor of activity start.
  *
- * Triggered by mikrokopter_monitor.
- * Yields to mikrokopter_pause_monitor, mikrokopter_ether.
- * Throws mikrokopter_e_connection, mikrokopter_e_started,
- *        mikrokopter_e_rotor_failure,
- *        mikrokopter_e_rotor_not_disabled.
+ * Triggered by rotorcraft_monitor.
+ * Yields to rotorcraft_pause_monitor, rotorcraft_ether.
+ * Throws rotorcraft_e_connection, rotorcraft_e_started,
+ *        rotorcraft_e_rotor_failure, rotorcraft_e_rotor_not_disabled.
  */
 genom_event
-mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
+mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
                  const or_rotorcraft_rotor_state rotor_state[8],
                  const genom_context self)
 {
-  mikrokopter_e_rotor_failure_detail e;
-  mikrokopter_e_rotor_not_disabled_detail d;
+  rotorcraft_e_rotor_failure_detail e;
+  rotorcraft_e_rotor_not_disabled_detail d;
   size_t i;
   bool complete;
 
@@ -585,7 +583,7 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
       if (rotor_state[i].starting || rotor_state[i].spinning) {
         mk_send_msg(&conn->chan[0], "x");
         d.id = 1 + i;
-        return mikrokopter_e_rotor_not_disabled(&d, self);
+        return rotorcraft_e_rotor_not_disabled(&d, self);
       }
 
       continue;
@@ -598,7 +596,7 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
         rotor_state[i].emerg) {
       mk_send_msg(&conn->chan[0], "x");
       e.id = 1 + i;
-      return mikrokopter_e_rotor_failure(&e, self);
+      return rotorcraft_e_rotor_failure(&e, self);
     }
 
     if (!rotor_state[i].starting)
@@ -607,28 +605,27 @@ mk_start_monitor(const mikrokopter_conn_s *conn, uint16_t *state,
     complete = false;
   }
 
-  return complete ? mikrokopter_ether : mikrokopter_pause_monitor;
+  return complete ? rotorcraft_ether : rotorcraft_pause_monitor;
 }
 
 /** Codel mk_start_stop of activity start.
  *
- * Triggered by mikrokopter_stop.
- * Yields to mikrokopter_pause_stop, mikrokopter_ether.
- * Throws mikrokopter_e_connection, mikrokopter_e_started,
- *        mikrokopter_e_rotor_failure,
- *        mikrokopter_e_rotor_not_disabled.
+ * Triggered by rotorcraft_stop.
+ * Yields to rotorcraft_pause_stop, rotorcraft_ether.
+ * Throws rotorcraft_e_connection, rotorcraft_e_started,
+ *        rotorcraft_e_rotor_failure, rotorcraft_e_rotor_not_disabled.
  */
 genom_event
-mk_start_stop(const mikrokopter_conn_s *conn,
+mk_start_stop(const rotorcraft_conn_s *conn,
               const or_rotorcraft_rotor_state rotor_state[8],
               const genom_context self)
 {
   genom_event e;
 
   e = mk_stop(conn, rotor_state, self);
-  if (e == mikrokopter_ether) return mikrokopter_ether;
+  if (e == rotorcraft_ether) return rotorcraft_ether;
 
-  return mikrokopter_pause_stop;
+  return rotorcraft_pause_stop;
 }
 
 
@@ -636,10 +633,10 @@ mk_start_stop(const mikrokopter_conn_s *conn,
 
 /** Codel mk_servo_start of activity servo.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_main.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_rate, mikrokopter_e_input.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_main.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure,
+ *        rotorcraft_e_rate, rotorcraft_e_input.
  */
 genom_event
 mk_servo_start(double *scale, const genom_context self)
@@ -647,22 +644,22 @@ mk_servo_start(double *scale, const genom_context self)
   (void)self;
 
   *scale = 0.;
-  return mikrokopter_main;
+  return rotorcraft_main;
 }
 
 /** Codel mk_servo_main of activity servo.
  *
- * Triggered by mikrokopter_main.
- * Yields to mikrokopter_pause_main, mikrokopter_stop.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_rate, mikrokopter_e_input.
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_pause_main, rotorcraft_stop.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure,
+ *        rotorcraft_e_rate, rotorcraft_e_input.
  */
 genom_event
-mk_servo_main(const mikrokopter_conn_s *conn,
-              const mikrokopter_ids_sensor_time_s *sensor_time,
-              mikrokopter_ids_rotor_data_s *rotor_data,
-              const mikrokopter_rotor_input *rotor_input,
-              const mikrokopter_ids_servo_s *servo, double *scale,
+mk_servo_main(const rotorcraft_conn_s *conn,
+              const rotorcraft_ids_sensor_time_s *sensor_time,
+              rotorcraft_ids_rotor_data_s *rotor_data,
+              const rotorcraft_rotor_input *rotor_input,
+              const rotorcraft_ids_servo_s *servo, double *scale,
               const genom_context self)
 {
   or_rotorcraft_input *input_data;
@@ -670,13 +667,13 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   genom_event e;
   int i;
 
-  if (!conn) return mikrokopter_e_connection(self);
+  if (!conn) return rotorcraft_e_connection(self);
 
   /* update input */
-  if (rotor_input->read(self)) return mikrokopter_e_input(self);
+  if (rotor_input->read(self)) return rotorcraft_e_input(self);
 
   input_data = rotor_input->data(self);
-  if (!input_data) return mikrokopter_e_input(self);
+  if (!input_data) return rotorcraft_e_input(self);
 
   or_rotorcraft_rotor_control desired = input_data->desired;
 
@@ -685,10 +682,10 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   if (tv.tv_sec + 1e-6*tv.tv_usec >
       0.5 + input_data->ts.sec + 1e-9*input_data->ts.nsec) {
 
-    *scale -= 2e-3 * mikrokopter_control_period_ms / servo->ramp;
+    *scale -= 2e-3 * rotorcraft_control_period_ms / servo->ramp;
     if (*scale < 0.) {
       mk_stop(conn, rotor_data->state, self);
-      return mikrokopter_e_input(self);
+      return rotorcraft_e_input(self);
     }
   }
 
@@ -696,10 +693,10 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
       sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
 
-    *scale -= 2e-3 * mikrokopter_control_period_ms / servo->ramp;
+    *scale -= 2e-3 * rotorcraft_control_period_ms / servo->ramp;
     if (*scale < 0.) {
       mk_stop(conn, rotor_data->state, self);
-      return mikrokopter_e_rate(self);
+      return rotorcraft_e_rate(self);
     }
   }
 
@@ -707,11 +704,11 @@ mk_servo_main(const mikrokopter_conn_s *conn,
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_data->state[i].disabled) continue;
     if (rotor_data->state[i].emerg || !rotor_data->state[i].spinning) {
-      mikrokopter_e_rotor_failure_detail e;
+      rotorcraft_e_rotor_failure_detail e;
 
       mk_stop(conn, rotor_data->state, self);
       e.id = 1 + i;
-      return mikrokopter_e_rotor_failure(&e, self);
+      return rotorcraft_e_rotor_failure(&e, self);
     }
   }
 
@@ -722,7 +719,7 @@ mk_servo_main(const mikrokopter_conn_s *conn,
     for(i = 0; i < input_data->desired._length; i++)
       desired._buffer[i] *= *scale;
 
-    *scale += 1e-3 * mikrokopter_control_period_ms / servo->ramp;
+    *scale += 1e-3 * rotorcraft_control_period_ms / servo->ramp;
   }
 
   /* send */
@@ -740,19 +737,18 @@ mk_servo_main(const mikrokopter_conn_s *conn,
       break;
   }
 
-  return mikrokopter_pause_main;
+  return rotorcraft_pause_main;
 }
 
 /** Codel mk_servo_stop of activity servo.
  *
- * Triggered by mikrokopter_stop.
- * Yields to mikrokopter_ether.
- * Throws mikrokopter_e_connection, mikrokopter_e_rotor_failure,
- *        mikrokopter_e_rate, mikrokopter_e_input.
+ * Triggered by rotorcraft_stop.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_connection, rotorcraft_e_rotor_failure,
+ *        rotorcraft_e_rate, rotorcraft_e_input.
  */
 genom_event
-mk_servo_stop(const mikrokopter_conn_s *conn,
-              const genom_context self)
+mk_servo_stop(const rotorcraft_conn_s *conn, const genom_context self)
 {
   uint16_t p[or_rotorcraft_max_rotors];
   int i;
@@ -762,7 +758,7 @@ mk_servo_stop(const mikrokopter_conn_s *conn,
 
   mk_send_msg(&conn->chan[0], "w%@", p, or_rotorcraft_max_rotors);
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }
 
 
@@ -770,23 +766,23 @@ mk_servo_stop(const mikrokopter_conn_s *conn,
 
 /** Codel mk_stop of activity stop.
  *
- * Triggered by mikrokopter_start.
- * Yields to mikrokopter_pause_start, mikrokopter_ether.
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_pause_start, rotorcraft_ether.
  */
 genom_event
-mk_stop(const mikrokopter_conn_s *conn,
+mk_stop(const rotorcraft_conn_s *conn,
         const or_rotorcraft_rotor_state state[8],
         const genom_context self)
 {
   size_t i;
 
-  if (!conn) return mikrokopter_e_connection(self);
+  if (!conn) return rotorcraft_e_connection(self);
   mk_send_msg(&conn->chan[0], "x");
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (state[i].disabled) continue;
-    if (state[i].spinning) return mikrokopter_pause_start;
+    if (state[i].spinning) return rotorcraft_pause_start;
   }
 
-  return mikrokopter_ether;
+  return rotorcraft_ether;
 }

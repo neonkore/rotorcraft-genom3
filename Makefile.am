@@ -17,12 +17,12 @@
 ACLOCAL_AMFLAGS=	-I autoconf
 
 # IDL source files
-idldir=		$(datadir)/idl/mikrokopter
-nobase_dist_idl_DATA= mikrokopter.gen
+idldir=		$(datadir)/idl/rotorcraft
+nobase_dist_idl_DATA= rotorcraft.gen
 
 pkgconfigdir=	$(libdir)/pkgconfig
 pkgconfig_DATA=
-pkgconfig_DATA+= mikrokopter-genom3.pc
+pkgconfig_DATA+= rotorcraft-genom3.pc
 
 # we don't want generated templates in the distribution
 #
@@ -41,7 +41,7 @@ distclean-local:
 merge: merge-interactive
 merge-%:
 	cd ${top_srcdir} && ${GENOM3}  \
-		skeleton -l 'c' -m $* mikrokopter.gen
+		skeleton -l 'c' -m $* rotorcraft.gen
 
 # documentation
 dist_doc_DATA=	README.html README.adoc

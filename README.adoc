@@ -15,14 +15,14 @@
 //					Anthony Mallet on Fri Feb 13 2015
 //
 
-// This file was generated from mikrokopter.gen by the skeleton
+// This file was generated from rotorcraft.gen by the skeleton
 // template. Manual changes should be preserved, although they should
 // rather be added to the "doc" attributes of the genom objects defined in
-// mikrokopter.gen.
+// rotorcraft.gen.
 
-= mikrokopter component
+= rotorcraft component
 openrobots@laas.fr
-2.0.1
+3.0
 :toc: left
 
 // fix default asciidoctor stylesheet issue #2407 and add hr clear rule
@@ -35,7 +35,7 @@ ifdef::backend-html5[]
 endif::[]
 
 
-Control mikrokopter multi-rotor UAVs.
+Control multi-rotor UAVs using the telekyb3 protocol.
 
 
 == Ports
@@ -159,12 +159,12 @@ data timestamp `ts`, `intrinsic` true, no position (`pos` and
 |===
 a|.Outputs
 [disc]
- * `struct ::mikrokopter::ids::sensor_time_s::rate_s` `rate`
+ * `struct ::rotorcraft::ids::sensor_time_s::rate_s` `rate`
  ** `double` `imu` Accelerometer and gyroscopes measurement frequency
  ** `double` `motor` Various motor data measurement frequency
  ** `double` `battery` Battery level measurement frequency
 
- * `struct ::mikrokopter::ids::sensor_time_s::rate_s` `measured_rate`
+ * `struct ::rotorcraft::ids::sensor_time_s::rate_s` `measured_rate`
  ** `double` `imu` Accelerometer and gyroscopes effective frequency
  ** `double` `motor` Various motor data effective frequency
  ** `double` `battery` Battery level effective frequency
@@ -182,7 +182,7 @@ Get hardware sensor data publishing rate, see <<set_sensor_rate>>.
 |===
 a|.Inputs
 [disc]
- * `struct ::mikrokopter::ids::sensor_time_s::rate_s` `rate`
+ * `struct ::rotorcraft::ids::sensor_time_s::rate_s` `rate`
  ** `double` `imu` (default `"1000"`) Accelerometer and gyroscopes measurement frequency
  ** `double` `motor` (default `"50"`) Various motor data measurement frequency
  ** `double` `battery` (default `"1"`) Battery level measurement frequency
@@ -208,7 +208,7 @@ update rate may be lower than expected.
 |===
 a|.Outputs
 [disc]
- * `struct ::mikrokopter::ids::battery_s` `battery`
+ * `struct ::rotorcraft::ids::battery_s` `battery`
  ** `double` `min` Minimum acceptable battery voltage
  ** `double` `max` Full battery voltage
  ** `double` `level` Current battery voltage
@@ -232,7 +232,7 @@ a|.Inputs
 
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_range`
+ * `exception ::rotorcraft::e_range`
 
 |===
 
@@ -249,7 +249,7 @@ This controls the computed `energy left` percentage in the port <<rotor_measure>
 |===
 a|.Outputs
 [disc]
- * `struct ::mikrokopter::ids::imu_calibration_s` `imu_calibration`
+ * `struct ::rotorcraft::ids::imu_calibration_s` `imu_calibration`
  ** `double` `gscale[9]` Gyroscopes 3×3 scaling matrix (row major)
  ** `double` `gbias[3]` Gyroscopes bias vector
  ** `double` `gstddev[3]` Gyroscopes measurement noise
@@ -270,7 +270,7 @@ Get current gyroscopes and accelerometer calibration data.
 |===
 a|.Inputs
 [disc]
- * `struct ::mikrokopter::ids::imu_calibration_s` `imu_calibration`
+ * `struct ::rotorcraft::ids::imu_calibration_s` `imu_calibration`
  ** `double` `gscale[9]` Gyroscopes 3×3 scaling matrix (row major)
  ** `double` `gbias[3]` Gyroscopes bias vector
  ** `double` `gstddev[3]` Gyroscopes measurement noise
@@ -298,7 +298,7 @@ Input parameters are typically those returned by a call to
 |===
 a|.Outputs
 [disc]
- * `struct ::mikrokopter::ids::imu_filter_s` `imu_filter`
+ * `struct ::rotorcraft::ids::imu_filter_s` `imu_filter`
  ** `boolean` `enable`
  ** `double` `gain`
  ** `double` `Q`
@@ -314,7 +314,7 @@ a|.Outputs
 |===
 a|.Inputs
 [disc]
- * `struct ::mikrokopter::ids::imu_filter_s` `imu_filter`
+ * `struct ::rotorcraft::ids::imu_filter_s` `imu_filter`
  ** `boolean` `enable`
  ** `double` `gain`
  ** `double` `Q`
@@ -351,11 +351,11 @@ a|.Inputs
 
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 
- * `exception ::mikrokopter::e_baddev`
+ * `exception ::rotorcraft::e_baddev`
  ** `string<256>` `dev`
 
 a|.Context
@@ -375,7 +375,7 @@ Connect to the hardware
 |===
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 
@@ -395,7 +395,7 @@ Disconnect from the hardware
 |===
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 
@@ -451,11 +451,11 @@ a|.Inputs
 
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 
- * `exception ::mikrokopter::e_connection`
+ * `exception ::rotorcraft::e_connection`
 
 a|.Context
 [disc]
@@ -519,7 +519,7 @@ gravity. Use <<set_zero>> (after calibration) to align the IMU.
 |===
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 
@@ -559,14 +559,14 @@ estimate them well.
 |===
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_connection`
+ * `exception ::rotorcraft::e_connection`
 
- * `exception ::mikrokopter::e_started`
+ * `exception ::rotorcraft::e_started`
 
- * `exception ::mikrokopter::e_rotor_failure`
+ * `exception ::rotorcraft::e_rotor_failure`
  ** `unsigned short` `id`
 
- * `exception ::mikrokopter::e_rotor_not_disabled`
+ * `exception ::rotorcraft::e_rotor_not_disabled`
  ** `unsigned short` `id`
 
 a|.Context
@@ -587,14 +587,14 @@ Spin propellers at the lowest velocity
 |===
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_connection`
+ * `exception ::rotorcraft::e_connection`
 
- * `exception ::mikrokopter::e_rotor_failure`
+ * `exception ::rotorcraft::e_rotor_failure`
  ** `unsigned short` `id`
 
- * `exception ::mikrokopter::e_rate`
+ * `exception ::rotorcraft::e_rate`
 
- * `exception ::mikrokopter::e_input`
+ * `exception ::rotorcraft::e_input`
 
 a|.Context
 [disc]
@@ -618,9 +618,9 @@ a|.Inputs
 
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_connection`
+ * `exception ::rotorcraft::e_connection`
 
- * `exception ::mikrokopter::e_rotor_failure`
+ * `exception ::rotorcraft::e_rotor_failure`
  ** `unsigned short` `id`
 
 a|.Context
@@ -643,9 +643,9 @@ a|.Inputs
 
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_connection`
+ * `exception ::rotorcraft::e_connection`
 
- * `exception ::mikrokopter::e_rotor_failure`
+ * `exception ::rotorcraft::e_rotor_failure`
  ** `unsigned short` `id`
 
 a|.Context
@@ -681,13 +681,13 @@ Stop all propellers
 |===
 a|.Inputs
 [disc]
- * `string<64>` `path` (default `"/tmp/mikrokopter.log"`) Log file name
+ * `string<64>` `path` (default `"/tmp/rotorcraft.log"`) Log file name
 
  * `unsigned long` `decimation` (default `"1"`) Reduced logging frequency
 
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 
@@ -749,7 +749,7 @@ a|.Context
 * Updates port `<<imu>>`
 a|.Throws
 [disc]
- * `exception ::mikrokopter::e_sys`
+ * `exception ::rotorcraft::e_sys`
  ** `short` `code`
  ** `string<128>` `what`
 

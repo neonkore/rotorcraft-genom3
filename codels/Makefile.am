@@ -14,31 +14,31 @@
 #
 #					Anthony Mallet on Fri Feb 13 2015
 #
-lib_LTLIBRARIES = libmikrokopter_codels.la
+lib_LTLIBRARIES = librotorcraft_codels.la
 
-libmikrokopter_codels_la_SOURCES=	mikrokopter_c_types.h
-libmikrokopter_codels_la_SOURCES+=	mikrokopter_codels.c
-libmikrokopter_codels_la_SOURCES+=	mikrokopter_main_codels.c
-libmikrokopter_codels_la_SOURCES+=	mikrokopter_comm_codels.c
-libmikrokopter_codels_la_SOURCES+=	tty.c
-libmikrokopter_codels_la_SOURCES+=	calibration.cc
-libmikrokopter_codels_la_SOURCES+=	filter.c
-libmikrokopter_codels_la_SOURCES+=	codels.h
+librotorcraft_codels_la_SOURCES=	rotorcraft_c_types.h
+librotorcraft_codels_la_SOURCES+=	rotorcraft_codels.c
+librotorcraft_codels_la_SOURCES+=	rotorcraft_main_codels.c
+librotorcraft_codels_la_SOURCES+=	rotorcraft_comm_codels.c
+librotorcraft_codels_la_SOURCES+=	tty.c
+librotorcraft_codels_la_SOURCES+=	calibration.cc
+librotorcraft_codels_la_SOURCES+=	filter.c
+librotorcraft_codels_la_SOURCES+=	codels.h
 
-libmikrokopter_codels_la_CPPFLAGS=	$(requires_CFLAGS)
-libmikrokopter_codels_la_LDFLAGS=	$(requires_LIBS)
-libmikrokopter_codels_la_CPPFLAGS+=	$(codels_requires_CFLAGS)
-libmikrokopter_codels_la_LDFLAGS+=	$(codels_requires_LIBS)
-libmikrokopter_codels_la_LDFLAGS+=	-release $(PACKAGE_VERSION)
+librotorcraft_codels_la_CPPFLAGS=	$(requires_CFLAGS)
+librotorcraft_codels_la_LDFLAGS=	$(requires_LIBS)
+librotorcraft_codels_la_CPPFLAGS+=	$(codels_requires_CFLAGS)
+librotorcraft_codels_la_LDFLAGS+=	$(codels_requires_LIBS)
+librotorcraft_codels_la_LDFLAGS+=	-release $(PACKAGE_VERSION)
 
-libmikrokopter_codels_la_CPPFLAGS+=	$(libudev_CFLAGS)
-libmikrokopter_codels_la_LDFLAGS+=	$(libudev_LIBS)
+librotorcraft_codels_la_CPPFLAGS+=	$(libudev_CFLAGS)
+librotorcraft_codels_la_LDFLAGS+=	$(libudev_LIBS)
 
 # idl  mappings
-BUILT_SOURCES=	mikrokopter_c_types.h
+BUILT_SOURCES=	rotorcraft_c_types.h
 CLEANFILES=	${BUILT_SOURCES}
-mikrokopter_c_types.h: ${top_srcdir}/mikrokopter.gen
+rotorcraft_c_types.h: ${top_srcdir}/rotorcraft.gen
 	${GENOM3}  mappings \
 	  -MD -MF .deps/$@.d -MT $@ --signature -l c $< >$@
 
--include .deps/mikrokopter_c_types.h.d
+-include .deps/rotorcraft_c_types.h.d

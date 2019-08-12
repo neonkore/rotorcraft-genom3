@@ -1,4 +1,4 @@
-dnl Autoconf file for building mikrokopter codels library.
+dnl Autoconf file for building rotorcraft codels library.
 dnl
 dnl Copyright (c) 2015-2019 LAAS/CNRS
 dnl All rights reserved.
@@ -18,10 +18,10 @@ dnl
 
 AC_PREREQ(2.59)
 
-AC_INIT([mikrokopter-genom3],[2.0.1],[openrobots@laas.fr])
+AC_INIT([rotorcraft-genom3],[3.0],[openrobots@laas.fr])
 AC_CONFIG_MACRO_DIR([autoconf])
 AC_CONFIG_AUX_DIR([autoconf])
-AC_CONFIG_HEADERS([autoconf/acmikrokopter.h])
+AC_CONFIG_HEADERS([autoconf/acrotorcraft.h])
 AM_INIT_AUTOMAKE([foreign no-define])
 AC_CANONICAL_HOST
 
@@ -50,7 +50,7 @@ fi
 
 dnl --with-templates option
 AG_OPT_TEMPLATES([$GENOM3 ],
-    [$srcdir/mikrokopter.gen])
+    [$srcdir/rotorcraft.gen])
 
 
 # check for TIOCGSERIAL, TIOCSSERIAL
@@ -84,8 +84,8 @@ AM_MISSING_PROG([ASCIIDOCTOR], [asciidoctor])
 
 dnl Output
 AC_CONFIG_FILES([
-	mikrokopter-genom3.pc
-	mikrokopter-genom3-uninstalled.pc
+	rotorcraft-genom3.pc
+	rotorcraft-genom3-uninstalled.pc
 	Makefile
 	codels/Makefile
 ])
