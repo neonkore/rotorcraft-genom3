@@ -34,7 +34,6 @@
 #include "rotorcraft_c_types.h"
 #include "codels.h"
 
-
 static or_time_ts	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
                                   rotorcraft_ids_sensor_time_s_ts_s *timings);
 
@@ -55,6 +54,7 @@ mk_comm_start(rotorcraft_conn_s **conn, const genom_context self)
 
   (*conn)->chan.fd = -1;
   (*conn)->chan.r = (*conn)->chan.w = 0;
+  (*conn)->device = RC_NONE;
 
   return rotorcraft_poll;
 }
@@ -338,8 +338,17 @@ mk_connect_start(const char serial[64], uint32_t baud,
                  rotorcraft_ids_sensor_time_s *sensor_time,
                  const genom_context self)
 {
-  static const char magic[] = "[?]*[ml][ky][bfm][lu]1.8*";
+  /* supported devices */
+  static const struct {
+    enum rc_device dev; const char *match; double rev;
+  } rc_devices[] = {
+    { .dev = RC_MKBL,		.match = "%*cmkbl%lf",	1.8 },
+    { .dev = RC_MKFL,		.match = "mkfl%lf",	1.8 },
+    { .dev = RC_FLYMU,		.match = "flymu%lf",	1.8 },
+    { .dev = RC_CHIMERA,	.match = "chimera%lf",	1.0 }
+  };
 
+  double rev;
   int c, s;
 
   if ((*conn)->chan.fd >= 0) {
@@ -373,24 +382,40 @@ mk_connect_start(const char serial[64], uint32_t baud,
 
     s = mk_recv_msg(&(*conn)->chan, true);
   } while(s == 1 && (*conn)->chan.msg[0] != '?');
+  if (s != 1) {
+    errno = ENOMSG;
+    return mk_e_sys_error(NULL, self);
+  }
 
+  /* match device */
   (*conn)->chan.msg[(*conn)->chan.len] = 0;
-  if (s != 1 || fnmatch(magic, (char *)(*conn)->chan.msg, 0)) {
-    if (s != 1) {
-      errno = ENOMSG;
-      return mk_e_sys_error(NULL, self);
-    } else {
+  (*conn)->device = RC_NONE;
+  for (c = 0; c < sizeof(rc_devices)/sizeof(rc_devices[0]); c++) {
+    if (sscanf((char *)&(*conn)->chan.msg[1], rc_devices[c].match, &rev) != 1)
+      continue;
+    if (rev < rc_devices[c].rev) {
       rotorcraft_e_baddev_detail d;
-      snprintf(d.dev, sizeof(d.dev), "device is `%s' instead of `%s'",
-               (*conn)->chan.msg, magic);
+      snprintf(d.dev, sizeof(d.dev), "hardware device version `%g' too old, "
+               "version `%g' or newer is required", rev, rc_devices[c].rev);
       close((*conn)->chan.fd);
       (*conn)->chan.fd = -1;
       return rotorcraft_e_baddev(&d, self);
     }
+
+    (*conn)->device = rc_devices[c].dev;
+    break;
+  }
+  if ((*conn)->device == RC_NONE) {
+    rotorcraft_e_baddev_detail d;
+    snprintf(d.dev, sizeof(d.dev), "unsupported hardware device `%s'",
+             &(*conn)->chan.msg[1]);
+    close((*conn)->chan.fd);
+    (*conn)->chan.fd = -1;
+    return rotorcraft_e_baddev(&d, self);
   }
 
   snprintf((*conn)->chan.path, sizeof((*conn)->chan.path), "%s", serial);
-  warnx("connected to %s", (*conn)->chan.path);
+  warnx("connected to %s, %s", &(*conn)->chan.msg[1], (*conn)->chan.path);
 
   /* configure data streaming */
   mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self);

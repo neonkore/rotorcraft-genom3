@@ -68,8 +68,17 @@ struct mk_channel_s {
   uint8_t msg[64], len; /* last message */
 };
 
+enum rc_device {
+  RC_NONE,
+  RC_MKBL,
+  RC_MKFL,
+  RC_FLYMU,
+  RC_CHIMERA
+};
+
 struct rotorcraft_conn_s {
   struct mk_channel_s chan;
+  enum rc_device device;
 };
 
 static inline genom_event
