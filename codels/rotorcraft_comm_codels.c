@@ -50,15 +50,11 @@ static or_time_ts	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
 genom_event
 mk_comm_start(rotorcraft_conn_s **conn, const genom_context self)
 {
-  size_t i;
-
   *conn = malloc(sizeof(**conn));
   if (!*conn) return mk_e_sys_error(NULL, self);
 
-  for(i = 0; i < mk_channels(); i++) {
-    (*conn)->chan[i].fd = -1;
-    (*conn)->chan[i].r = (*conn)->chan[i].w = 0;
-  }
+  (*conn)->chan.fd = -1;
+  (*conn)->chan.r = (*conn)->chan.w = 0;
 
   return rotorcraft_poll;
 }
@@ -75,7 +71,7 @@ mk_comm_poll(const rotorcraft_conn_s *conn, const genom_context self)
 {
   int s;
 
-  s = mk_wait_msg(conn->chan, mk_channels());
+  s = mk_wait_msg(&conn->chan);
   if (s < 0) {
     if (errno != EINTR) return mk_e_sys_error(NULL, self);
     return rotorcraft_nodata;
@@ -141,167 +137,165 @@ mk_comm_recv(rotorcraft_conn_s **conn,
   uint16_t u16;
 
   more = 0;
-  for(i = 0; i < mk_channels(); i++) {
-    if (mk_recv_msg(&(*conn)->chan[i], false) == 1) {
-      more = 1;
-      gettimeofday(&tv, NULL);
+  if (mk_recv_msg(&(*conn)->chan, false) == 1) {
+    more = 1;
+    gettimeofday(&tv, NULL);
 
-      msg = (*conn)->chan[i].msg;
-      len = (*conn)->chan[i].len;
-      switch(*msg++) {
-        case 'I': /* IMU data */
-          if (len == 14) {
-            or_pose_estimator_state *idata = imu->data(self);
-            double v[3];
-            uint8_t seq = *msg++;
+    msg = (*conn)->chan.msg;
+    len = (*conn)->chan.len;
+    switch(*msg++) {
+      case 'I': /* IMU data */
+        if (len == 14) {
+          or_pose_estimator_state *idata = imu->data(self);
+          double v[3];
+          uint8_t seq = *msg++;
 
-            if (seq == sensor_time->imu.seq) break;
+          if (seq == sensor_time->imu.seq) break;
 
-            ts = mk_get_ts(
-              seq, tv, sensor_time->rate.imu, &sensor_time->imu);
+          ts = mk_get_ts(
+            seq, tv, sensor_time->rate.imu, &sensor_time->imu);
 
-            sensor_time->measured_rate.imu += 0.05 * (
-              1. / (ts.sec - idata->ts.sec +
-                    (1 + ts.nsec - idata->ts.nsec) * 1e-9)
-              - sensor_time->measured_rate.imu
-              );
-            idata->ts = ts;
+          sensor_time->measured_rate.imu += 0.05 * (
+            1. / (ts.sec - idata->ts.sec +
+                  (1 + ts.nsec - idata->ts.nsec) * 1e-9)
+            - sensor_time->measured_rate.imu
+            );
+          idata->ts = ts;
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            v[0] = v16/1000. + imu_calibration->abias[0];
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[0] = v16/1000. + imu_calibration->abias[0];
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            v[1] = v16/1000. + imu_calibration->abias[1];
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[1] = v16/1000. + imu_calibration->abias[1];
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            v[2] = v16/1000. + imu_calibration->abias[2];
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[2] = v16/1000. + imu_calibration->abias[2];
 
-            idata->acc._value.ax =
-              imu_calibration->ascale[0] * v[0] +
-              imu_calibration->ascale[1] * v[1] +
-              imu_calibration->ascale[2] * v[2];
-            idata->acc._value.ay =
-              imu_calibration->ascale[3] * v[0] +
-              imu_calibration->ascale[4] * v[1] +
-              imu_calibration->ascale[5] * v[2];
-            idata->acc._value.az =
-              imu_calibration->ascale[6] * v[0] +
-              imu_calibration->ascale[7] * v[1] +
-              imu_calibration->ascale[8] * v[2];
+          idata->acc._value.ax =
+            imu_calibration->ascale[0] * v[0] +
+            imu_calibration->ascale[1] * v[1] +
+            imu_calibration->ascale[2] * v[2];
+          idata->acc._value.ay =
+            imu_calibration->ascale[3] * v[0] +
+            imu_calibration->ascale[4] * v[1] +
+            imu_calibration->ascale[5] * v[2];
+          idata->acc._value.az =
+            imu_calibration->ascale[6] * v[0] +
+            imu_calibration->ascale[7] * v[1] +
+            imu_calibration->ascale[8] * v[2];
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            v[0] = v16/1000. + imu_calibration->gbias[0];
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[0] = v16/1000. + imu_calibration->gbias[0];
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            v[1] = v16/1000. + imu_calibration->gbias[1];
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[1] = v16/1000. + imu_calibration->gbias[1];
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            v[2] = v16/1000. + imu_calibration->gbias[2];
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[2] = v16/1000. + imu_calibration->gbias[2];
 
-            idata->avel._value.wx =
-              imu_calibration->gscale[0] * v[0] +
-              imu_calibration->gscale[1] * v[1] +
-              imu_calibration->gscale[2] * v[2];
-            idata->avel._value.wy =
-              imu_calibration->gscale[3] * v[0] +
-              imu_calibration->gscale[4] * v[1] +
-              imu_calibration->gscale[5] * v[2];
-            idata->avel._value.wz =
-              imu_calibration->gscale[6] * v[0] +
-              imu_calibration->gscale[7] * v[1] +
-              imu_calibration->gscale[8] * v[2];
+          idata->avel._value.wx =
+            imu_calibration->gscale[0] * v[0] +
+            imu_calibration->gscale[1] * v[1] +
+            imu_calibration->gscale[2] * v[2];
+          idata->avel._value.wy =
+            imu_calibration->gscale[3] * v[0] +
+            imu_calibration->gscale[4] * v[1] +
+            imu_calibration->gscale[5] * v[2];
+          idata->avel._value.wz =
+            imu_calibration->gscale[6] * v[0] +
+            imu_calibration->gscale[7] * v[1] +
+            imu_calibration->gscale[8] * v[2];
 
-            idata->avel._present = true;
-            idata->acc._present = true;
-          } else
-            warnx("bad IMU message");
-          break;
+          idata->avel._present = true;
+          idata->acc._present = true;
+        } else
+          warnx("bad IMU message");
+        break;
 
-        case 'M': /* motor data */
-          if (len == 9) {
-            uint8_t seq = *msg++;
-            uint8_t state = *msg++;
-            uint8_t id = state & 0xf;
+      case 'M': /* motor data */
+        if (len == 9) {
+          uint8_t seq = *msg++;
+          uint8_t state = *msg++;
+          uint8_t id = state & 0xf;
 
-            if (id < 1 || id > or_rotorcraft_max_rotors) break;
-            id--;
-            if (seq == sensor_time->motor[id].seq) break;
+          if (id < 1 || id > or_rotorcraft_max_rotors) break;
+          id--;
+          if (seq == sensor_time->motor[id].seq) break;
 
-            if (!rotor_data->state[id].ts.sec && rotor_data->state[id].disabled)
-              rotor_data->state[id].disabled = 0;
+          if (!rotor_data->state[id].ts.sec && rotor_data->state[id].disabled)
+            rotor_data->state[id].disabled = 0;
 
-            ts = mk_get_ts(
-              seq, tv, sensor_time->rate.motor, &sensor_time->motor[id]);
+          ts = mk_get_ts(
+            seq, tv, sensor_time->rate.motor, &sensor_time->motor[id]);
 
-            sensor_time->measured_rate.motor += 0.05 * (
-              1. / (ts.sec - rotor_data->state[id].ts.sec +
-                    (1 + ts.nsec - rotor_data->state[id].ts.nsec) * 1e-9)
-              - sensor_time->measured_rate.motor
-              );
-            rotor_data->state[id].ts = ts;
+          sensor_time->measured_rate.motor += 0.05 * (
+            1. / (ts.sec - rotor_data->state[id].ts.sec +
+                  (1 + ts.nsec - rotor_data->state[id].ts.nsec) * 1e-9)
+            - sensor_time->measured_rate.motor
+            );
+          rotor_data->state[id].ts = ts;
 
-            rotor_data->state[id].emerg = !!(state & 0x80);
-            rotor_data->state[id].spinning = !!(state & 0x20);
-            rotor_data->state[id].starting = !!(state & 0x10);
+          rotor_data->state[id].emerg = !!(state & 0x80);
+          rotor_data->state[id].spinning = !!(state & 0x20);
+          rotor_data->state[id].starting = !!(state & 0x10);
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            if (rotor_data->state[id].spinning)
-              rotor_data->state[id].velocity = v16 ? 1e6/2/v16 : 0.;
-            else
-              rotor_data->state[id].velocity = 0.;
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          if (rotor_data->state[id].spinning)
+            rotor_data->state[id].velocity = v16 ? 1e6/2/v16 : 0.;
+          else
+            rotor_data->state[id].velocity = 0.;
 
-            v16 = ((int16_t)(*msg++) << 8);
-            v16 |= ((uint16_t)(*msg++) << 0);
-            rotor_data->state[id].throttle = v16 * 100./1023.;
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          rotor_data->state[id].throttle = v16 * 100./1023.;
 
-            u16 = ((uint16_t)(*msg++) << 8);
-            u16 |= ((uint16_t)(*msg++) << 0);
-            rotor_data->state[id].consumption = u16 / 1e3;
-          } else
-            warnx("bad motor data message");
-          break;
+          u16 = ((uint16_t)(*msg++) << 8);
+          u16 |= ((uint16_t)(*msg++) << 0);
+          rotor_data->state[id].consumption = u16 / 1e3;
+        } else
+          warnx("bad motor data message");
+        break;
 
-        case 'B': /* battery data */
-          if (len == 4) {
-            uint8_t seq  __attribute__((unused)) = *msg++;
-            double p;
+      case 'B': /* battery data */
+        if (len == 4) {
+          uint8_t seq  __attribute__((unused)) = *msg++;
+          double p;
 
-            u16 = ((uint16_t)(*msg++) << 8);
-            u16 |= ((uint16_t)(*msg++) << 0);
-            battery->level = u16/1000.;
+          u16 = ((uint16_t)(*msg++) << 8);
+          u16 |= ((uint16_t)(*msg++) << 0);
+          battery->level = u16/1000.;
 
-            p = 100. *
+          p = 100. *
               (battery->level - battery->min)/(battery->max - battery->min);
-            for(i = 0; i < or_rotorcraft_max_rotors; i++)
-              rotor_data->state[i].energy_level = p;
-          } else
-            warnx("bad battery message");
-          break;
+          for(i = 0; i < or_rotorcraft_max_rotors; i++)
+            rotor_data->state[i].energy_level = p;
+        } else
+          warnx("bad battery message");
+        break;
 
-        case 'T': /* clock rate */
-          if (len == 3) {
-            uint8_t id = *msg++;
+      case 'T': /* clock rate */
+        if (len == 3) {
+          uint8_t id = *msg++;
 
-            if (id < 1 || id > or_rotorcraft_max_rotors) break;
-            id--;
-            rotor_data->clkrate[id] = *msg;
-          } else
-            warnx("bad clock rate message");
-          break;
+          if (id < 1 || id > or_rotorcraft_max_rotors) break;
+          id--;
+          rotor_data->clkrate[id] = *msg;
+        } else
+          warnx("bad clock rate message");
+        break;
 
-        case '?': /* ignored messages */
-          break;
+      case '?': /* ignored messages */
+        break;
 
-        default:
-          warnx("received unknown message");
-      }
+      default:
+        warnx("received unknown message");
     }
   }
 
@@ -320,7 +314,7 @@ mk_comm_stop(rotorcraft_conn_s **conn, const genom_context self)
 {
   if (!*conn) return rotorcraft_ether;
 
-  mk_send_msg(&(*conn)->chan[0], "x");
+  mk_send_msg(&(*conn)->chan, "x");
   mk_set_sensor_rate(
     &(struct rotorcraft_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
@@ -339,73 +333,64 @@ mk_comm_stop(rotorcraft_conn_s **conn, const genom_context self)
  * Throws rotorcraft_e_sys, rotorcraft_e_baddev.
  */
 genom_event
-mk_connect_start(const char serial[2][64], uint32_t baud,
+mk_connect_start(const char serial[64], uint32_t baud,
                  rotorcraft_conn_s **conn,
                  rotorcraft_ids_sensor_time_s *sensor_time,
                  const genom_context self)
 {
   static const char magic[] = "[?]*[ml][ky][bfm][lu]1.8*";
 
-  size_t i;
   int c, s;
 
-  for(i = 0; i < mk_channels(); i++) {
-    if ((*conn)->chan[i].fd >= 0) {
-      close((*conn)->chan[i].fd);
-      warnx("disconnected from %s", (*conn)->chan[i].path);
-    }
-
-    if (!*serial[i]) {
-      (*conn)->chan[i].fd = -1;
-      continue;
-    }
-
-    /* open tty */
-    (*conn)->chan[i].fd = mk_open_tty(serial[i], baud);
-    if ((*conn)->chan[i].fd < 0) return mk_e_sys_error(serial[i], self);
-
-    (*conn)->chan[i].r = (*conn)->chan[i].w = 0;
-    (*conn)->chan[i].start = (*conn)->chan[i].escape = false;
-
-    /* check endpoint */
-    while (mk_recv_msg(&(*conn)->chan[i], true) == 1); /* flush buffer */
-    do {
-      c = 0;
-      do {
-        if (mk_send_msg(&(*conn)->chan[i], "?")) /* ask for id */
-          return mk_e_sys_error(serial[i], self);
-
-        s = mk_wait_msg(&(*conn)->chan[i], 1);
-        if (s < 0 && errno != EINTR) return mk_e_sys_error(NULL, self);
-        if (s > 0) break;
-      } while(c++ < 3);
-      if (c > 3) {
-        errno = ETIMEDOUT;
-        return mk_e_sys_error(NULL, self);
-      }
-
-      s = mk_recv_msg(&(*conn)->chan[i], true);
-    } while(s == 1 && (*conn)->chan[i].msg[0] != '?');
-
-    (*conn)->chan[i].msg[(*conn)->chan[i].len] = 0;
-    if (s != 1 || fnmatch(magic, (char *)(*conn)->chan[i].msg, 0)) {
-      if (s != 1) {
-        errno = ENOMSG;
-        return mk_e_sys_error(NULL, self);
-      } else {
-        rotorcraft_e_baddev_detail d;
-        snprintf(d.dev, sizeof(d.dev), "device is `%s' instead of `%s'",
-                 (*conn)->chan[i].msg, magic);
-        close((*conn)->chan[i].fd);
-        (*conn)->chan[i].fd = -1;
-        return rotorcraft_e_baddev(&d, self);
-      }
-    }
-
-    snprintf((*conn)->chan[i].path, sizeof((*conn)->chan[i].path),
-             "%s", serial[i]);
-    warnx("connected to %s", (*conn)->chan[i].path);
+  if ((*conn)->chan.fd >= 0) {
+    close((*conn)->chan.fd);
+    warnx("disconnected from %s", (*conn)->chan.path);
   }
+
+  /* open tty */
+  (*conn)->chan.fd = mk_open_tty(serial, baud);
+  if ((*conn)->chan.fd < 0) return mk_e_sys_error(serial, self);
+
+  (*conn)->chan.r = (*conn)->chan.w = 0;
+  (*conn)->chan.start = (*conn)->chan.escape = false;
+
+  /* check endpoint */
+  while (mk_recv_msg(&(*conn)->chan, true) == 1); /* flush buffer */
+  do {
+    c = 0;
+    do {
+      if (mk_send_msg(&(*conn)->chan, "?")) /* ask for id */
+        return mk_e_sys_error(serial, self);
+
+      s = mk_wait_msg(&(*conn)->chan);
+      if (s < 0 && errno != EINTR) return mk_e_sys_error(NULL, self);
+      if (s > 0) break;
+    } while(c++ < 3);
+    if (c > 3) {
+      errno = ETIMEDOUT;
+      return mk_e_sys_error(NULL, self);
+    }
+
+    s = mk_recv_msg(&(*conn)->chan, true);
+  } while(s == 1 && (*conn)->chan.msg[0] != '?');
+
+  (*conn)->chan.msg[(*conn)->chan.len] = 0;
+  if (s != 1 || fnmatch(magic, (char *)(*conn)->chan.msg, 0)) {
+    if (s != 1) {
+      errno = ENOMSG;
+      return mk_e_sys_error(NULL, self);
+    } else {
+      rotorcraft_e_baddev_detail d;
+      snprintf(d.dev, sizeof(d.dev), "device is `%s' instead of `%s'",
+               (*conn)->chan.msg, magic);
+      close((*conn)->chan.fd);
+      (*conn)->chan.fd = -1;
+      return rotorcraft_e_baddev(&d, self);
+    }
+  }
+
+  snprintf((*conn)->chan.path, sizeof((*conn)->chan.path), "%s", serial);
+  warnx("connected to %s", (*conn)->chan.path);
 
   /* configure data streaming */
   mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self);
@@ -426,21 +411,17 @@ genom_event
 mk_disconnect_start(rotorcraft_conn_s **conn,
                     const genom_context self)
 {
-  size_t i;
-
-  mk_send_msg(&(*conn)->chan[0], "x");
+  mk_send_msg(&(*conn)->chan, "x");
   mk_set_sensor_rate(
     &(struct rotorcraft_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
         }, *conn, NULL, self);
 
-  for(i = 0; i < mk_channels(); i++) {
-    if ((*conn)->chan[i].fd >= 0) {
-      close((*conn)->chan[i].fd);
-      warnx("disconnected from %s", (*conn)->chan[i].path);
-    }
-    (*conn)->chan[i].fd = -1;
+  if ((*conn)->chan.fd >= 0) {
+    close((*conn)->chan.fd);
+    warnx("disconnected from %s", (*conn)->chan.path);
   }
+  (*conn)->chan.fd = -1;
 
   return rotorcraft_ether;
 }
@@ -458,12 +439,9 @@ genom_event
 mk_monitor_check(const rotorcraft_conn_s *conn,
                  const genom_context self)
 {
-  size_t i;
-
   (void)self;
 
-  for(i = 0; i < mk_channels(); i++)
-    if (conn->chan[i].fd >= 0) return rotorcraft_pause_sleep;
+  if (conn->chan.fd >= 0) return rotorcraft_pause_sleep;
 
   return rotorcraft_ether;
 }

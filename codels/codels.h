@@ -69,15 +69,8 @@ struct mk_channel_s {
 };
 
 struct rotorcraft_conn_s {
-  struct mk_channel_s chan[2];
+  struct mk_channel_s chan;
 };
-
-static inline size_t
-mk_channels(void)
-{
-  rotorcraft_conn_s *c;
-  return sizeof(c->chan)/sizeof(c->chan[0]);
-}
 
 static inline genom_event
 mk_e_sys_error(const char *s, genom_context self)
@@ -97,7 +90,7 @@ mk_e_sys_error(const char *s, genom_context self)
 }
 
 int	mk_open_tty(const char *device, speed_t baud);
-int	mk_wait_msg(const struct mk_channel_s *channels, int n);
+int	mk_wait_msg(const struct mk_channel_s *channel);
 int	mk_recv_msg(struct mk_channel_s *chan, bool block);
 int	mk_send_msg(const struct mk_channel_s *chan, const char *fmt, ...);
 

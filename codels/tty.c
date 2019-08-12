@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2018 LAAS/CNRS
+ * Copyright (c) 2015-2019 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -262,26 +262,22 @@ done:
 /* --- mk_wait_msg --------------------------------------------------------- */
 
 int
-mk_wait_msg(const struct mk_channel_s *channels, int n)
+mk_wait_msg(const struct mk_channel_s *channel)
 {
-  struct pollfd pfds[n];
-  int i, s;
+  struct pollfd pfd;
+  int s;
 
-  for(i = 0; i < n; i++) {
-    pfds[i].fd = channels[i].fd;
-    pfds[i].events = POLLIN;
-  }
+  pfd.fd = channel->fd;
+  pfd.events = POLLIN;
 
-  s = poll(pfds, n, 500/*ms*/);
+  s = poll(&pfd, 1, 500/*ms*/);
 
-  for(i = 0; i < n; i++) {
-    if (pfds[i].revents & POLLHUP) {
-      close(pfds[i].fd);
+  if (pfd.revents & POLLHUP) {
+    close(pfd.fd);
 
-      /* cheating with const. Oh well... */
-      ((struct mk_channel_s *)channels)[i].fd = -1;
-      warnx("disconnected from %s", channels[i].path);
-    }
+    /* cheating with const. Oh well... */
+    ((struct mk_channel_s *)channel)->fd = -1;
+    warnx("disconnected from %s", channel->path);
   }
 
   return s;

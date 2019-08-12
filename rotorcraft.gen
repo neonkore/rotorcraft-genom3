@@ -236,11 +236,8 @@ component rotorcraft {
   /* --- hw connection ----------------------------------------------------- */
 
   activity connect(
-    in string<64> serial[2] = {
-      "/dev/ttyUSB0" :"Main serial device",
-      "" :"Optional second serial device"
-    } :"Serial devices",
-    in unsigned long baud = 115200 :"Baud rate") {
+    in string<64> serial = "/dev/ttyUSB0" :"Serial device",
+    in unsigned long baud = 0 :"Baud rate") {
 
     doc		"Connect to the hardware";
     task	comm;

@@ -163,11 +163,11 @@ mk_main_perm(const rotorcraft_conn_s *conn,
   gettimeofday(&tv, NULL);
 
   /* battery level */
-  if (conn && conn->chan[0].fd >= 0) {
+  if (conn && conn->chan.fd >= 0) {
     if (battery->level > 0. && battery->level < battery->min) {
       static int cnt;
 
-      if (!cnt) mk_send_msg(&conn->chan[0], "~%2", 440);
+      if (!cnt) mk_send_msg(&conn->chan, "~%2", 440);
       cnt = (cnt + 1) % 500;
     }
   }
@@ -551,7 +551,7 @@ mk_start_start(const rotorcraft_conn_s *conn, uint16_t *state,
   *state = 0;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) continue;
-    mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
+    mk_send_msg(&conn->chan, "g%1", (uint8_t){i+1});
 
     /* wait until motor have cleared any emergency flag */
     if (rotor_state[i].emerg) return rotorcraft_pause_start;
@@ -581,7 +581,7 @@ mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) {
       if (rotor_state[i].starting || rotor_state[i].spinning) {
-        mk_send_msg(&conn->chan[0], "x");
+        mk_send_msg(&conn->chan, "x");
         d.id = 1 + i;
         return rotorcraft_e_rotor_not_disabled(&d, self);
       }
@@ -594,13 +594,13 @@ mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
 
     if ((!rotor_state[i].starting && (*state & (1 << i))) ||
         rotor_state[i].emerg) {
-      mk_send_msg(&conn->chan[0], "x");
+      mk_send_msg(&conn->chan, "x");
       e.id = 1 + i;
       return rotorcraft_e_rotor_failure(&e, self);
     }
 
     if (!rotor_state[i].starting)
-      mk_send_msg(&conn->chan[0], "g%1", (uint8_t){i+1});
+      mk_send_msg(&conn->chan, "g%1", (uint8_t){i+1});
 
     complete = false;
   }
@@ -756,7 +756,7 @@ mk_servo_stop(const rotorcraft_conn_s *conn, const genom_context self)
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) p[i] = 32767;
 
-  mk_send_msg(&conn->chan[0], "w%@", p, or_rotorcraft_max_rotors);
+  mk_send_msg(&conn->chan, "w%@", p, or_rotorcraft_max_rotors);
 
   return rotorcraft_ether;
 }
@@ -777,7 +777,7 @@ mk_stop(const rotorcraft_conn_s *conn,
   size_t i;
 
   if (!conn) return rotorcraft_e_connection(self);
-  mk_send_msg(&conn->chan[0], "x");
+  mk_send_msg(&conn->chan, "x");
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (state[i].disabled) continue;

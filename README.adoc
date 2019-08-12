@@ -343,11 +343,9 @@ a|.Inputs
 |===
 a|.Inputs
 [disc]
- * `string<64>` `serial[2]` Serial devices
- ** `string<64>` `[0]` (default `"/dev/ttyUSB0"`) Main serial device
- ** `string<64>` `[1]` (default `""`) Optional second serial device
+ * `string<64>` `serial` (default `"/dev/ttyUSB0"`) Serial device
 
- * `unsigned long` `baud` (default `"115200"`) Baud rate
+ * `unsigned long` `baud` (default `"0"`) Baud rate
 
 a|.Throws
 [disc]
