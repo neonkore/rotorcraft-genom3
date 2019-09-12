@@ -99,6 +99,7 @@ component rotorcraft {
 
     /* servo parameters */
     struct servo_s {
+      double timeout;
       double ramp;
     } servo;
 
@@ -190,6 +191,9 @@ component rotorcraft {
     validate mk_set_imu_filter(local in imu_filter);
   };
 
+  attribute set_timeout(in servo.timeout = 30:"Startup timeout (s)") {
+    doc "Set motor startup timeout";
+  };
   attribute set_ramp(in servo.ramp);
 
 
@@ -388,18 +392,21 @@ component rotorcraft {
     task	main;
 
     local unsigned short state;
+    local unsigned long timeout;
 
-    codel<start> mk_start_start(in conn, out state,
+    codel<start> mk_start_start(in conn, in servo, out timeout, out state,
                                 in rotor_data.state::rotor_state)
       yield pause::start, monitor;
-    codel<monitor> mk_start_monitor(in conn, inout state,
+    codel<monitor> mk_start_monitor(in conn, in sensor_time,
+                                    inout timeout, inout state,
                                     in rotor_data.state::rotor_state)
       yield pause::monitor, ether;
     codel<stop> mk_start_stop(in conn, in rotor_data.state::rotor_state)
       yield pause::stop, ether;
 
     interrupt start;
-    throw e_connection, e_started, e_rotor_failure, e_rotor_not_disabled;
+    throw e_connection, e_started, e_sys, e_rotor_failure,
+      e_rotor_not_disabled;
   };
 
   activity servo() {

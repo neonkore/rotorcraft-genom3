@@ -94,6 +94,7 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
     ids->rotor_data.clkrate[i] = 0;
   }
 
+  ids->servo.timeout = 30.;
   ids->servo.ramp = 3.;
 
   /* init logging */
@@ -533,10 +534,13 @@ mk_set_zero(double accum[3], double gycum[3],
  * Triggered by rotorcraft_start.
  * Yields to rotorcraft_pause_start, rotorcraft_monitor.
  * Throws rotorcraft_e_connection, rotorcraft_e_started,
- *        rotorcraft_e_rotor_failure, rotorcraft_e_rotor_not_disabled.
+ *        rotorcraft_e_sys, rotorcraft_e_rotor_failure,
+ *        rotorcraft_e_rotor_not_disabled.
  */
 genom_event
-mk_start_start(const rotorcraft_conn_s *conn, uint16_t *state,
+mk_start_start(const rotorcraft_conn_s *conn,
+               const rotorcraft_ids_servo_s *servo, uint32_t *timeout,
+               uint16_t *state,
                const or_rotorcraft_rotor_state rotor_state[8],
                const genom_context self)
 {
@@ -548,6 +552,7 @@ mk_start_start(const rotorcraft_conn_s *conn, uint16_t *state,
     if (rotor_state[i].spinning) return rotorcraft_e_started(self);
   }
 
+  *timeout = servo->timeout * 1e3 / rotorcraft_control_period_ms;
   *state = 0;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) continue;
@@ -565,10 +570,13 @@ mk_start_start(const rotorcraft_conn_s *conn, uint16_t *state,
  * Triggered by rotorcraft_monitor.
  * Yields to rotorcraft_pause_monitor, rotorcraft_ether.
  * Throws rotorcraft_e_connection, rotorcraft_e_started,
- *        rotorcraft_e_rotor_failure, rotorcraft_e_rotor_not_disabled.
+ *        rotorcraft_e_sys, rotorcraft_e_rotor_failure,
+ *        rotorcraft_e_rotor_not_disabled.
  */
 genom_event
-mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
+mk_start_monitor(const rotorcraft_conn_s *conn,
+                 const rotorcraft_ids_sensor_time_s *sensor_time,
+                 uint32_t *timeout, uint16_t *state,
                  const or_rotorcraft_rotor_state rotor_state[8],
                  const genom_context self)
 {
@@ -576,6 +584,12 @@ mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
   rotorcraft_e_rotor_not_disabled_detail d;
   size_t i;
   bool complete;
+
+  if (!(*timeout)--) {
+    mk_send_msg(&conn->chan, "x");
+    errno = EAGAIN;
+    return mk_e_sys_error("start", self);
+  }
 
   complete = true;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
@@ -599,11 +613,17 @@ mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
       return rotorcraft_e_rotor_failure(&e, self);
     }
 
-    if (!rotor_state[i].starting)
+    /* resend startup message every 100 periods */
+    if (!rotor_state[i].starting && *timeout % 100 == 0)
       mk_send_msg(&conn->chan, "g%1", (uint8_t){i+1});
 
     complete = false;
   }
+
+  /* check sensor rate */
+  if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
+      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor)
+    complete = false;
 
   return complete ? rotorcraft_ether : rotorcraft_pause_monitor;
 }
@@ -613,7 +633,8 @@ mk_start_monitor(const rotorcraft_conn_s *conn, uint16_t *state,
  * Triggered by rotorcraft_stop.
  * Yields to rotorcraft_pause_stop, rotorcraft_ether.
  * Throws rotorcraft_e_connection, rotorcraft_e_started,
- *        rotorcraft_e_rotor_failure, rotorcraft_e_rotor_not_disabled.
+ *        rotorcraft_e_sys, rotorcraft_e_rotor_failure,
+ *        rotorcraft_e_rotor_not_disabled.
  */
 genom_event
 mk_start_stop(const rotorcraft_conn_s *conn,

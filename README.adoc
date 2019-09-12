@@ -323,6 +323,21 @@ a|.Inputs
 
 '''
 
+[[set_timeout]]
+=== set_timeout (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `timeout` (default `"30"`) Startup timeout (s)
+
+|===
+
+Set motor startup timeout
+
+'''
+
 [[set_ramp]]
 === set_ramp (attribute)
 
@@ -560,6 +575,10 @@ a|.Throws
  * `exception ::rotorcraft::e_connection`
 
  * `exception ::rotorcraft::e_started`
+
+ * `exception ::rotorcraft::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
 
  * `exception ::rotorcraft::e_rotor_failure`
  ** `unsigned short` `id`
