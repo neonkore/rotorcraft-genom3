@@ -345,7 +345,7 @@ a|.Inputs
 [disc]
  * `string<64>` `serial` (default `"/dev/ttyUSB0"`) Serial device
 
- * `unsigned long` `baud` (default `"0"`) Baud rate
+ * `unsigned long` `baud` (default `"0"`) Baud rate (0 = don't change)
 
 a|.Throws
 [disc]
