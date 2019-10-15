@@ -60,7 +60,8 @@ component rotorcraft {
     struct sensor_time_s {
       struct ts_s {
         octet seq;
-        double ts, offset;
+        double ts, offset;		/* clock estimator */
+        double rerr, rgain, rmed;	/* rate estimator */
       } imu, motor[or_rotorcraft::max_rotors], battery;
 
       struct rate_s {

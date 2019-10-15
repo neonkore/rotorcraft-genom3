@@ -34,8 +34,9 @@
 #include "rotorcraft_c_types.h"
 #include "codels.h"
 
-static or_time_ts	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
-                                  rotorcraft_ids_sensor_time_s_ts_s *timings);
+static void	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
+                        rotorcraft_ids_sensor_time_s_ts_s *timings,
+                        or_time_ts *ts, double *lprate);
 
 
 /* --- Task comm -------------------------------------------------------- */
@@ -129,7 +130,6 @@ mk_comm_recv(rotorcraft_conn_s **conn,
              const genom_context self)
 {
   struct timeval tv;
-  or_time_ts ts;
   int more;
   size_t i;
   uint8_t *msg, len;
@@ -152,15 +152,9 @@ mk_comm_recv(rotorcraft_conn_s **conn,
 
           if (seq == sensor_time->imu.seq) break;
 
-          ts = mk_get_ts(
-            seq, tv, sensor_time->rate.imu, &sensor_time->imu);
-
-          sensor_time->measured_rate.imu += 0.05 * (
-            1. / (ts.sec - idata->ts.sec +
-                  (1 + ts.nsec - idata->ts.nsec) * 1e-9)
-            - sensor_time->measured_rate.imu
-            );
-          idata->ts = ts;
+          mk_get_ts(
+            seq, tv, sensor_time->rate.imu, &sensor_time->imu,
+            &idata->ts, &sensor_time->measured_rate.imu);
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
@@ -231,15 +225,9 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           if (!rotor_data->state[id].ts.sec && rotor_data->state[id].disabled)
             rotor_data->state[id].disabled = 0;
 
-          ts = mk_get_ts(
-            seq, tv, sensor_time->rate.motor, &sensor_time->motor[id]);
-
-          sensor_time->measured_rate.motor += 0.05 * (
-            1. / (ts.sec - rotor_data->state[id].ts.sec +
-                  (1 + ts.nsec - rotor_data->state[id].ts.nsec) * 1e-9)
-            - sensor_time->measured_rate.motor
-            );
-          rotor_data->state[id].ts = ts;
+          mk_get_ts(
+            seq, tv, sensor_time->rate.motor, &sensor_time->motor[id],
+            &rotor_data->state[id].ts, &sensor_time->measured_rate.motor);
 
           rotor_data->state[id].emerg = !!(state & 0x80);
           rotor_data->state[id].spinning = !!(state & 0x20);
@@ -349,7 +337,8 @@ mk_connect_start(const char serial[64], uint32_t baud,
   };
 
   double rev;
-  int c, s;
+  size_t c;
+  int s;
 
   if ((*conn)->chan.fd >= 0) {
     close((*conn)->chan.fd);
@@ -477,12 +466,12 @@ mk_monitor_check(const rotorcraft_conn_s *conn,
 /** Implements Olson, Edwin. "A passive solution to the sensor synchronization
  * problem." International conference on Intelligent Robots and Systems (IROS),
  * 2010 IEEE/RSJ */
-static or_time_ts
+static void
 mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
-          rotorcraft_ids_sensor_time_s_ts_s *timings)
+          rotorcraft_ids_sensor_time_s_ts_s *timings, or_time_ts *ts,
+          double *lprate)
 {
-  or_time_ts atv;
-  double ts;
+  double ats, df;
   uint8_t ds;
   assert(rate > 0.);
 
@@ -501,18 +490,39 @@ mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
   timings->seq = seq;
 
   /* update offset */
-  ts = rtv.tv_sec + 1e-6 * rtv.tv_usec;
-  if (timings->ts - ts > timings->offset)
-    timings->offset = timings->ts - ts;
+  ats = rtv.tv_sec + 1e-6 * rtv.tv_usec;
+  if (timings->ts - ats > timings->offset)
+    timings->offset = timings->ts - ats;
 
   /* local timestamp - reset offset if it diverged too much from realtime,
    * maybe the sensor is not sending at the specified rate */
-  if (ts - (timings->ts - timings->offset) > 2. / rate)
-    timings->offset = timings->ts - ts;
+  if (ats - (timings->ts - timings->offset) > 2. / rate)
+    timings->offset = timings->ts - ats;
   else
-    ts = timings->ts - timings->offset;
+    ats = timings->ts - timings->offset;
 
-  atv.sec = floor(ts);
-  atv.nsec = (ts - atv.sec) * 1e9;
-  return atv;
+  /* update estimated rate */
+  df = 1. / (ats - ts->sec - ts->nsec * 1e-9);
+
+  if (df > timings->rmed)
+    timings->rerr = (timings->rerr + 1.) / 2.;
+  else
+    timings->rerr = (timings->rerr - 1.) / 2.;
+
+  if (fabs(timings->rerr) > 0.75)
+    timings->rgain *= 2;
+  else
+    timings->rgain /= 2;
+  if (timings->rgain < 0.1) timings->rgain = 0.1;
+
+  if (df > timings->rmed)
+    timings->rmed += timings->rgain;
+  else
+    timings->rmed -= timings->rgain;
+
+  *lprate += 0.25 * (timings->rmed - *lprate);
+
+  /* update timestamp */
+  ts->sec = floor(ats);
+  ts->nsec = (ats - ts->sec) * 1e9;
 }

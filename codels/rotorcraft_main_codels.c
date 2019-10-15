@@ -254,8 +254,8 @@ mk_main_perm(const rotorcraft_conn_s *conn,
     rate = 1./ (
       tv.tv_sec - idata->ts.sec +
       (1 + tv.tv_usec * 1000 - idata->ts.nsec) * 1e-9)	;
-    if (rate < 0.3 * sensor_time->rate.imu)
-      sensor_time->measured_rate.imu *= 0.995;
+    if (rate < 0.1 * sensor_time->rate.imu)
+      sensor_time->measured_rate.imu = 0.;
 
     for(i = 0; i < or_rotorcraft_max_rotors; i++) {
       if (rotor_data->state[i].disabled) continue;
@@ -263,8 +263,8 @@ mk_main_perm(const rotorcraft_conn_s *conn,
       rate = 1. / (
         tv.tv_sec - rotor_data->state[i].ts.sec +
         (1 + tv.tv_usec * 1000 - rotor_data->state[i].ts.nsec) * 1e-9);
-      if (rate < 0.3 * sensor_time->rate.motor) {
-        sensor_time->measured_rate.motor *= 0.995;
+      if (rate < 0.1 * sensor_time->rate.motor) {
+        sensor_time->measured_rate.motor = 0.;
       }
     }
   }
@@ -711,8 +711,8 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   }
 
   /* check sensor rate */
-  if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
-      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
+  if (sensor_time->measured_rate.imu < 0.9 * sensor_time->rate.imu ||
+      sensor_time->measured_rate.motor < 0.9 * sensor_time->rate.motor) {
 
     *scale -= 2e-3 * rotorcraft_control_period_ms / servo->ramp;
     if (*scale < 0.) {
