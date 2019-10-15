@@ -45,6 +45,7 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
   int i;
 
   if (rate->imu < 0. || rate->imu > 2000. ||
+      rate->mag < 0. || rate->mag > 2000. ||
       rate->motor < 0. || rate->motor > 2000. ||
       rate->battery < 0. || rate->battery > 2000.)
     return rotorcraft_e_range(self);
@@ -54,6 +55,10 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
     sensor_time->imu.ts = 0.;
     sensor_time->imu.offset = -DBL_MAX;
     sensor_time->imu.rmed = rate->imu;
+    sensor_time->mag.seq = 0;
+    sensor_time->mag.ts = 0.;
+    sensor_time->mag.offset = -DBL_MAX;
+    sensor_time->mag.rmed = rate->mag;
     for(i = 0; i < or_rotorcraft_max_rotors; i++) {
       sensor_time->motor[i].seq = 0;
       sensor_time->motor[i].ts = 0.;
@@ -66,6 +71,7 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
     sensor_time->battery.rmed = rate->battery;
 
     sensor_time->measured_rate.imu = rate->imu;
+    sensor_time->measured_rate.mag = rate->mag;
     sensor_time->measured_rate.motor = rate->motor;
     sensor_time->measured_rate.battery = rate->battery;
   }
@@ -78,8 +84,10 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
   mk_send_msg(&conn->chan, "b%4", p);
   p = rate->motor > 0. ? 1000000/rate->motor : 0;
   mk_send_msg(&conn->chan, "m%4", p);
-  p = rate->motor > 0. ? 1000000/rate->imu : 0;
+  p = rate->imu > 0. ? 1000000/rate->imu : 0;
   mk_send_msg(&conn->chan, "i%4", p);
+  p = rate->mag > 0. ? 1000000/rate->mag : 0;
+  mk_send_msg(&conn->chan, "c%4", p);
 
   return genom_ok;
 }

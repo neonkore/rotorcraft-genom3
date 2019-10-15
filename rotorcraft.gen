@@ -49,6 +49,10 @@ component rotorcraft {
     doc "`NaN`. All other elements are always present.";
   };
 
+  port out	or_pose_estimator::state mag {
+    doc "Provides current magnetometer measurements.";
+  };
+
 
   /* --- internal state ---------------------------------------------------- */
 
@@ -62,15 +66,15 @@ component rotorcraft {
         octet seq;
         double ts, offset;		/* clock estimator */
         double rerr, rgain, rmed;	/* rate estimator */
-      } imu, motor[or_rotorcraft::max_rotors], battery;
+      } imu, mag, motor[or_rotorcraft::max_rotors], battery;
 
       struct rate_s {
-        double imu, motor, battery;
+        double imu, mag, motor, battery;
       } rate, measured_rate;
     } sensor_time;
 
     struct publish_time_s {
-      or::time::ts imu, motor[or_rotorcraft::max_rotors];
+      or::time::ts imu, mag, motor[or_rotorcraft::max_rotors];
     } publish_time;
 
     /* battery data */
@@ -110,11 +114,13 @@ component rotorcraft {
 
   attribute get_sensor_rate(out sensor_time.rate = {
       .imu =: "Accelerometer and gyroscopes measurement frequency",
+      .mag =: "Magnetometer measurement frequency",
       .motor =: "Various motor data measurement frequency",
       .battery =: "Battery level measurement frequency"
     },
     out sensor_time.measured_rate = {
       .imu =: "Accelerometer and gyroscopes effective frequency",
+      .mag =: "Magnetometer measurement frequency",
       .motor =: "Various motor data effective frequency",
       .battery =: "Battery level effective frequency"
     }) {
@@ -122,18 +128,21 @@ component rotorcraft {
   };
   attribute set_sensor_rate(in sensor_time.rate = {
       .imu = 1000.: "Accelerometer and gyroscopes measurement frequency",
+      .mag = 100.: "Magnetometer measurement frequency",
       .motor = 50: "Various motor data measurement frequency",
       .battery = 1: "Battery level measurement frequency"
     }) {
     doc "Set hardware sensor data publishing rate, in _Hz_";
     doc "";
-    doc "`imu` controls the update frequency of port <<imu>>, while `motor`";
-    doc "and `battery` indirectly control the port <<rotor_measure>>.";
+    doc "`imu` and `mag` control the update frequency of port <<imu>> and";
+    doc "<<mag>> respectively, while `motor` and `battery` indirectly control";
+    doc "the port <<rotor_measure>>.";
     doc "";
     doc "CAUTION: The hardware may not be able to achieve the desired";
     doc "frequency, especially for `motor` data when many motors are";
     doc "controlled. In this case, no error will be reported, but the ports";
-    doc "update rate may be lower than expected.";
+    doc "update rate may be lower than expected and the <<servo>> service";
+    doc "will smoothly stop the motors.";
 
     validate mk_set_sensor_rate(local in rate, in conn, out sensor_time);
   };
@@ -205,13 +214,13 @@ component rotorcraft {
   task main {
     period control_period_ms ms;
 
-    codel<start> mk_main_init(out ::ids, in imu)
+    codel<start> mk_main_init(out ::ids, in imu, in mag)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
                              in imu_filter, in rotor_data,
                              inout sensor_time, inout publish_time,
                              inout imu_calibration_updated,
-                             inout log, out rotor_measure, out imu)
+                             inout log, out rotor_measure, out imu, out mag)
       yield pause::main;
 
     codel<stop> mk_main_stop(inout log)
@@ -225,10 +234,10 @@ component rotorcraft {
     async codel<poll> mk_comm_poll(in conn)
       yield nodata, recv;
     codel<nodata> mk_comm_nodata(inout conn, inout sensor_time,
-                                 out imu, out battery)
+                                 out imu, out mag, out battery)
       yield poll;
     codel<recv> mk_comm_recv(inout conn, in imu_calibration, inout sensor_time,
-                             out imu, out rotor_data, out battery)
+                             out imu, out mag, out rotor_data, out battery)
       yield poll, recv;
 
     codel<stop> mk_comm_stop(inout conn)

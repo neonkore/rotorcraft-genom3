@@ -92,11 +92,12 @@ mk_comm_poll(const rotorcraft_conn_s *conn, const genom_context self)
 genom_event
 mk_comm_nodata(rotorcraft_conn_s **conn,
                rotorcraft_ids_sensor_time_s *sensor_time,
-               const rotorcraft_imu *imu,
+               const rotorcraft_imu *imu, const rotorcraft_mag *mag,
                rotorcraft_ids_battery_s *battery,
                const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
+  or_pose_estimator_state *mdata = mag->data(self);
 
   /* reset exported data in case of timeout */
   idata->avel._present = false;
@@ -105,6 +106,13 @@ mk_comm_nodata(rotorcraft_conn_s **conn,
   idata->acc._present = false;
   idata->acc._value.ax = idata->acc._value.ay = idata->acc._value.az =
     nan("");
+
+  mdata->att._present = false;
+  mdata->att._value.qw =
+    idata->att._value.qy =
+    idata->att._value.qz =
+    idata->att._value.qx = nan("");
+
   battery->level = 0.;
 
   if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
@@ -124,7 +132,7 @@ genom_event
 mk_comm_recv(rotorcraft_conn_s **conn,
              const rotorcraft_ids_imu_calibration_s *imu_calibration,
              rotorcraft_ids_sensor_time_s *sensor_time,
-             const rotorcraft_imu *imu,
+             const rotorcraft_imu *imu, const rotorcraft_mag *mag,
              rotorcraft_ids_rotor_data_s *rotor_data,
              rotorcraft_ids_battery_s *battery,
              const genom_context self)
@@ -210,6 +218,38 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           idata->acc._present = true;
         } else
           warnx("bad IMU message");
+        break;
+
+      case 'C': /* magnetometer data */
+        if (len == 8) {
+          or_pose_estimator_state *mdata = mag->data(self);
+          double v[3];
+          uint8_t seq = *msg++;
+
+          if (seq == sensor_time->mag.seq) break;
+
+          mk_get_ts(&tv, &sensor_time->mag,
+                    &mdata->ts, &sensor_time->measured_rate.mag);
+
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[0] = v16/1e8;
+
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[1] = v16/1e8;
+
+          v16 = ((int16_t)(*msg++) << 8);
+          v16 |= ((uint16_t)(*msg++) << 0);
+          v[2] = v16/1e8;
+
+          mdata->att._value.qx = v[0];
+          mdata->att._value.qy = v[1];
+          mdata->att._value.qz = v[2];
+
+          mdata->att._present = true;
+        } else
+          warnx("bad magnetometer message");
         break;
 
       case 'M': /* motor data */
@@ -304,9 +344,7 @@ mk_comm_stop(rotorcraft_conn_s **conn, const genom_context self)
 
   mk_send_msg(&(*conn)->chan, "x");
   mk_set_sensor_rate(
-    &(struct rotorcraft_ids_sensor_time_s_rate_s){
-      .imu = 0, .motor = 0, .battery = 0
-        }, *conn, NULL, self);
+    &(struct rotorcraft_ids_sensor_time_s_rate_s){ 0 }, *conn, NULL, self);
 
   return rotorcraft_ether;
 }

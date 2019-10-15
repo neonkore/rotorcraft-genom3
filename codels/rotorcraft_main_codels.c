@@ -38,18 +38,16 @@ static struct mk_iir_filter Hax, Hay, Haz, Hwx, Hwy, Hwz;
  */
 genom_event
 mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
-             const genom_context self)
+             const rotorcraft_mag *mag, const genom_context self)
 {
   genom_event e;
   size_t i;
 
   ids->sensor_time = (rotorcraft_ids_sensor_time_s){
-    .imu = { 0 }, .motor = {{ 0 }}, .battery = { 0 },
-    .rate = { .imu = 1000., .motor = 100., .battery = 1. },
-    .measured_rate = { .imu = 0., .motor = 0., .battery = 0. }
+    .rate = { .imu = 1000., .mag = 100., .motor = 100., .battery = 1. }
   };
   ids->publish_time = (rotorcraft_ids_publish_time_s){
-    .imu = { 0 }, .motor = {{ 0 }}
+    .imu = { 0 }, .mag =  { 0 }, .motor = {{ 0 }}
   };
   e = mk_set_sensor_rate(
     &ids->sensor_time.rate, NULL, &ids->sensor_time, self);
@@ -114,7 +112,7 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
     .decimation = 1, .missed = 0, .total = 0
   };
 
-  *imu->data(self) = (or_pose_estimator_state){
+  *imu->data(self) = *mag->data(self) = (or_pose_estimator_state){
     .ts = { 0, 0 },
     .intrinsic = true,
 
@@ -154,9 +152,11 @@ mk_main_perm(const rotorcraft_conn_s *conn,
              rotorcraft_ids_publish_time_s *publish_time,
              bool *imu_calibration_updated, rotorcraft_log_s **log,
              const rotorcraft_rotor_measure *rotor_measure,
-             const rotorcraft_imu *imu, const genom_context self)
+             const rotorcraft_imu *imu, const rotorcraft_mag *mag,
+             const genom_context self)
 {
   or_pose_estimator_state *idata = imu->data(self);
+  or_pose_estimator_state *mdata = mag->data(self);
   or_rotorcraft_output *rdata = rotor_measure->data(self);
   struct timeval tv;
   ssize_t i;
@@ -246,6 +246,12 @@ mk_main_perm(const rotorcraft_conn_s *conn,
     publish_time->imu = idata->ts;
   }
 
+  if (publish_time->mag.sec != mdata->ts.sec ||
+      publish_time->mag.nsec != mdata->ts.nsec) {
+    mag->write(self);
+    publish_time->mag = mdata->ts;
+  }
+
 
   /* update sensor time */
   {
@@ -256,6 +262,12 @@ mk_main_perm(const rotorcraft_conn_s *conn,
       (1 + tv.tv_usec * 1000 - idata->ts.nsec) * 1e-9)	;
     if (rate < 0.1 * sensor_time->rate.imu)
       sensor_time->measured_rate.imu = 0.;
+
+    rate = 1./ (
+      tv.tv_sec - mdata->ts.sec +
+      (1 + tv.tv_usec * 1000 - mdata->ts.nsec) * 1e-9)	;
+    if (rate < 0.1 * sensor_time->rate.mag)
+      sensor_time->measured_rate.mag = 0.;
 
     for(i = 0; i < or_rotorcraft_max_rotors; i++) {
       if (rotor_data->state[i].disabled) continue;
@@ -295,9 +307,12 @@ mk_main_perm(const rotorcraft_conn_s *conn,
         "%s" rotorcraft_log_line "\n",
         (*log)->skipped ? "\n" : "",
         (uint64_t)tv.tv_sec, (uint32_t)tv.tv_usec * 1000,
-        sensor_time->measured_rate.imu, sensor_time->measured_rate.motor,
+        sensor_time->measured_rate.imu,
+        sensor_time->measured_rate.mag,
+        sensor_time->measured_rate.motor,
         idata->avel._value.wx, idata->avel._value.wy, idata->avel._value.wz,
         idata->acc._value.ax, idata->acc._value.ay, idata->acc._value.az,
+        mdata->att._value.qx, mdata->att._value.qy, mdata->att._value.qz,
 
         rotor_data->wd[0], rotor_data->wd[1], rotor_data->wd[2],
         rotor_data->wd[3], rotor_data->wd[4], rotor_data->wd[5],
