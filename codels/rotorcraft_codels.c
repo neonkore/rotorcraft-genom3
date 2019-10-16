@@ -51,29 +51,12 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
     return rotorcraft_e_range(self);
 
   if (sensor_time) {
-    sensor_time->imu.seq = 0;
-    sensor_time->imu.ts = 0.;
     sensor_time->imu.offset = -DBL_MAX;
-    sensor_time->imu.rmed = rate->imu;
-    sensor_time->mag.seq = 0;
-    sensor_time->mag.ts = 0.;
     sensor_time->mag.offset = -DBL_MAX;
-    sensor_time->mag.rmed = rate->mag;
-    for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-      sensor_time->motor[i].seq = 0;
-      sensor_time->motor[i].ts = 0.;
-      sensor_time->motor[i].offset = -DBL_MAX;
-      sensor_time->motor[i].rmed = rate->motor;
-    }
-    sensor_time->battery.seq = 0;
-    sensor_time->battery.ts = 0.;
     sensor_time->battery.offset = -DBL_MAX;
-    sensor_time->battery.rmed = rate->battery;
-
-    sensor_time->measured_rate.imu = rate->imu;
-    sensor_time->measured_rate.mag = rate->mag;
-    sensor_time->measured_rate.motor = rate->motor;
-    sensor_time->measured_rate.battery = rate->battery;
+    for(i = 0; i < or_rotorcraft_max_rotors; i++) {
+      sensor_time->motor[i].offset = -DBL_MAX;
+    }
   }
 
   /* reconfigure existing connection */

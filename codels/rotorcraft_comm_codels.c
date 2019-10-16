@@ -34,7 +34,7 @@
 #include "rotorcraft_c_types.h"
 #include "codels.h"
 
-static void	mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
+static void	mk_get_ts(uint8_t seq, struct timeval atv, double rate,
                         rotorcraft_ids_sensor_time_s_ts_s *timings,
                         or_time_ts *ts, double *lprate);
 
@@ -228,8 +228,9 @@ mk_comm_recv(rotorcraft_conn_s **conn,
 
           if (seq == sensor_time->mag.seq) break;
 
-          mk_get_ts(&tv, &sensor_time->mag,
-                    &mdata->ts, &sensor_time->measured_rate.mag);
+          mk_get_ts(
+            seq, tv, sensor_time->rate.mag, &sensor_time->mag,
+            &mdata->ts, &sensor_time->measured_rate.mag);
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
@@ -505,47 +506,26 @@ mk_monitor_check(const rotorcraft_conn_s *conn,
  * problem." International conference on Intelligent Robots and Systems (IROS),
  * 2010 IEEE/RSJ */
 static void
-mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
+mk_get_ts(uint8_t seq, struct timeval atv, double rate,
           rotorcraft_ids_sensor_time_s_ts_s *timings, or_time_ts *ts,
           double *lprate)
 {
+  static const uint32_t tsshift = 1000000000;
+
   double ats, df;
   uint8_t ds;
   assert(rate > 0.);
 
-  /* delta samples */
-  ds = seq - timings->seq;
-  if (ds > 16)
-    /* if too many samples were lost, we might have missed more than 255
-     * samples: reset the offset */
-    timings->offset = -DBL_MAX;
-  else
-    /* consider a 0.5% clock drift on the sender side */
-    timings->offset -= 0.005 * ds / rate;
-
-  /* update remote timestamp */
-  timings->ts += ds / rate;
-  timings->seq = seq;
-
-  /* update offset */
-  ats = rtv.tv_sec + 1e-6 * rtv.tv_usec;
-  if (timings->ts - ats > timings->offset)
-    timings->offset = timings->ts - ats;
-
-  /* local timestamp - reset offset if it diverged too much from realtime,
-   * maybe the sensor is not sending at the specified rate */
-  if (ats - (timings->ts - timings->offset) > 2. / rate)
-    timings->offset = timings->ts - ats;
-  else
-    ats = timings->ts - timings->offset;
+  /* arrival timestamp - offset for better floating point precision */
+  ats = (atv.tv_sec - tsshift) + atv.tv_usec * 1e-6;
 
   /* update estimated rate */
-  df = 1. / (ats - ts->sec - ts->nsec * 1e-9);
+  df = 1. / (ats - timings->last);
 
   if (df > timings->rmed)
-    timings->rerr = (timings->rerr + 1.) / 2.;
+    timings->rerr = (3 * timings->rerr + 1.) / 4.;
   else
-    timings->rerr = (timings->rerr - 1.) / 2.;
+    timings->rerr = (3 * timings->rerr - 1.) / 4.;
 
   if (fabs(timings->rerr) > 0.75)
     timings->rgain *= 2;
@@ -558,9 +538,36 @@ mk_get_ts(uint8_t seq, struct timeval rtv, double rate,
   else
     timings->rmed -= timings->rgain;
 
-  *lprate += 0.25 * (timings->rmed - *lprate);
+  *lprate += 0.1 * (timings->rmed - *lprate);
+
+  /* delta samples */
+  ds = seq - timings->seq;
+  if (ds > 16)
+    /* if too many samples were lost, we might have missed more than 255
+     * samples: reset the offset */
+    timings->offset = -DBL_MAX;
+  else
+    /* consider a 0.1% clock drift on the sender side */
+    timings->offset -= 0.001 * ds / rate;
+
+  /* update remote timestamp */
+  timings->last = ats;
+  timings->ts += ds / rate;
+  timings->seq = seq;
+
+  /* update offset */
+  if (timings->ts - ats > timings->offset)
+    timings->offset = timings->ts - ats;
+
+  /* local timestamp - reset offset if it diverged more than 5ms from realtime,
+   * maybe the sensor is not sending at the specified rate */
+  if (ats - (timings->ts - timings->offset) > 0.005)
+    timings->offset = timings->ts - ats;
+  else
+    ats = timings->ts - timings->offset;
 
   /* update timestamp */
   ts->sec = floor(ats);
   ts->nsec = (ats - ts->sec) * 1e9;
+  ts->sec += tsshift;
 }
