@@ -42,6 +42,7 @@ struct mk_calibration_data {
   Eigen::Matrix<double, 1, Eigen::Dynamic> t;
   Eigen::Matrix<double, 3, Eigen::Dynamic> gyr;
   Eigen::Matrix<double, 3, Eigen::Dynamic> acc;
+  Eigen::Matrix<double, 3, Eigen::Dynamic> mag;
   int32_t samples;
   or_time_ts ts;
 
@@ -69,6 +70,7 @@ mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps)
 
   raw_data->gyr.resize(Eigen::NoChange, sps);
   raw_data->acc.resize(Eigen::NoChange, sps);
+  raw_data->mag.resize(Eigen::NoChange, sps);
   raw_data->samples = 0;
   raw_data->ts.sec = raw_data->ts.nsec = 0;
 
@@ -86,7 +88,8 @@ mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps)
 /* --- mk_calibration_collect ---------------------------------------------- */
 
 int
-mk_calibration_collect(or_pose_estimator_state *imu_data, int32_t *still)
+mk_calibration_collect(or_pose_estimator_state *imu_data,
+                       or_pose_estimator_state *mag_data, int32_t *still)
 {
   Eigen::Matrix<double, 3, 1> acc, accvar;
   double m;
@@ -121,6 +124,14 @@ mk_calibration_collect(or_pose_estimator_state *imu_data, int32_t *still)
     imu_data->acc._value.ax,
     imu_data->acc._value.ay,
     imu_data->acc._value.az;
+
+  if (raw_data->mag.cols() <= raw_data->samples)
+    raw_data->mag.conservativeResize(Eigen::NoChange,
+                                     raw_data->mag.cols() + raw_data->sps);
+  raw_data->mag.col(raw_data->samples) <<
+    mag_data->att._value.qx,
+    mag_data->att._value.qy,
+    mag_data->att._value.qz;
 
 
   /* compute accelerometer variance over the last second */
@@ -415,10 +426,43 @@ mk_calibration_gyr(double gscale[9], double gbias[3])
 }
 
 
+/* --- mk_calibration_mag -------------------------------------------------- */
+
+int
+mk_calibration_mag(double mscale[9], double mbias[3])
+{
+  Eigen::Matrix<double, 3, 1> b1, l1;
+  Eigen::Matrix<double, 3, 3> S1 = Eigen::Matrix<double, 3, 3>::Identity();
+  double n;
+
+  /* get min/max magnetometer data */
+  Eigen::Matrix<double, 3, 1> max, min;
+
+  max = raw_data->mag.rowwise().maxCoeff();
+  min = raw_data->mag.rowwise().minCoeff();
+
+  b1 = - (max + min)/2;
+  l1 = (max - min)/2;
+  n = l1.lpNorm<1>()/3;
+
+  S1.diagonal() = (n / l1.array());
+
+  /* update old scale S0 and bias b0 with new S1 and b1 so that we now read
+   * S1.( S0.(a + b0) + b1 ), i.e. S = S1.S0 and b = b0 + S0^-1.b1 */
+  Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor> > S(mscale);
+  Eigen::Map<Eigen::Matrix<double, 3, 1> > b(mbias);
+
+  b += S.inverse() * b1;
+  S = S1 * S;
+
+  return 0;
+}
+
+
 /* --- mk_calibration_fini ------------------------------------------------- */
 
 void
-mk_calibration_fini(double stddeva[3], double stddevw[3],
+mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
                     double maxa[3], double maxw[3])
 {
   Eigen::Matrix<double, 3, 1> s, v;
@@ -461,6 +505,26 @@ mk_calibration_fini(double stddeva[3], double stddevw[3],
     stddevw[0] = std::sqrt(s(0));
     stddevw[1] = std::sqrt(s(1));
     stddevw[2] = std::sqrt(s(2));
+  }
+  if (stddevm) {
+    s << 0., 0., 0.;
+    n = 0;
+    for(i = 0; i < raw_data->still.cols(); i++) {
+      raw_data->sum << 0., 0., 0.;
+      raw_data->sumsq << 0., 0., 0.;
+      for(k = raw_data->still(0, i); k <= raw_data->still(1, i); k++) {
+        v = raw_data->mag.col(k);
+        raw_data->sum += v;
+        raw_data->sumsq += v.cwiseProduct(v);
+      }
+      l = raw_data->still(1, i) - raw_data->still(0, i) + 1;
+      s += raw_data->sumsq - raw_data->sum.cwiseProduct(raw_data->sum)/l;
+      n += l;
+    }
+    s /= n;
+    stddevm[0] = std::sqrt(s(0));
+    stddevm[1] = std::sqrt(s(1));
+    stddevm[2] = std::sqrt(s(2));
   }
 
   /* max absolute */

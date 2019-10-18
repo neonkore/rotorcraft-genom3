@@ -111,11 +111,13 @@ extern "C" {
 
   int	mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps);
   int	mk_calibration_collect(or_pose_estimator_state *imu_data,
+                               or_pose_estimator_state *mag_data,
                                int32_t *still);
   int	mk_calibration_acc(double ascale[9], double abias[3]);
   int	mk_calibration_gyr(double gscale[9], double gbias[3]);
+  int	mk_calibration_mag(double mscale[9], double mbias[3]);
   void	mk_calibration_fini(double stddeva[3], double stddevw[3],
-                            double *maxa, double *maxw);
+                double stddevm[3], double *maxa, double *maxw);
 
   void	mk_calibration_rotate(double r[9], double s[9]);
   void	mk_calibration_bias(double b1[3], double s[9], double b[3]);

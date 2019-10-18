@@ -73,6 +73,14 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
     },
     .abias = { 0., 0., 0. },
     .astddev = { 5e-2, 5e-2, 5e-2 },
+
+    .mscale = {
+      1., 0., 0.,
+      0., 1., 0.,
+      0., 0., 1.
+    },
+    .mbias = { 0., 0., 0. },
+    .mstddev = { 5e-2, 5e-2, 5e-2 },
   };
   ids->imu_calibration_updated = true;
 
@@ -196,6 +204,21 @@ mk_main_perm(const rotorcraft_conn_s *conn,
     idata->acc_cov._value.cov[5] =
       imu_calibration->astddev[2] * imu_calibration->astddev[2];
     idata->acc_cov._present = true;
+
+    mdata->att_cov._value.cov[0] = 0.;
+    mdata->att_cov._value.cov[1] = 0.;
+    mdata->att_cov._value.cov[2] =
+      imu_calibration->mstddev[0] * imu_calibration->mstddev[0];
+    mdata->att_cov._value.cov[3] = 0.;
+    mdata->att_cov._value.cov[4] = 0.;
+    mdata->att_cov._value.cov[5] =
+      imu_calibration->mstddev[1] * imu_calibration->mstddev[1];
+    mdata->att_cov._value.cov[6] = 0.;
+    mdata->att_cov._value.cov[7] = 0.;
+    mdata->att_cov._value.cov[8] = 0.;
+    mdata->att_cov._value.cov[9] =
+      imu_calibration->mstddev[2] * imu_calibration->mstddev[2];
+    mdata->att_cov._present = true;
 
     *imu_calibration_updated = false;
   }
@@ -391,12 +414,13 @@ mk_calibrate_imu_start(double tstill, uint16_t nposes,
  */
 genom_event
 mk_calibrate_imu_collect(const rotorcraft_imu *imu,
+                         const rotorcraft_mag *mag,
                          const genom_context self)
 {
   int32_t still;
   int s;
 
-  s = mk_calibration_collect(imu->data(self), &still);
+  s = mk_calibration_collect(imu->data(self), mag->data(self), &still);
   switch(s) {
     case 0: break;
 
@@ -409,7 +433,7 @@ mk_calibrate_imu_collect(const rotorcraft_imu *imu,
 
     default:
       warnx("calibration aborted");
-      mk_calibration_fini(NULL, NULL, NULL, NULL);
+      mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
       errno = s;
       return mk_e_sys_error("calibration", self);
   }
@@ -433,21 +457,22 @@ mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
   int s;
 
   s = mk_calibration_acc(imu_calibration->ascale, imu_calibration->abias);
+  if (!s)
+    s = mk_calibration_gyr(imu_calibration->gscale, imu_calibration->gbias);
+  if (!s)
+    s = mk_calibration_mag(imu_calibration->mscale, imu_calibration->mbias);
+
   if (s) {
-    mk_calibration_fini(NULL, NULL, NULL, NULL);
+    mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
     errno = s;
     return mk_e_sys_error("calibration", self);
   }
 
-  s = mk_calibration_gyr(imu_calibration->gscale, imu_calibration->gbias);
-  if (s) {
-    mk_calibration_fini(NULL, NULL, NULL, NULL);
-    errno = s;
-    return mk_e_sys_error("calibration", self);
-  }
-
-  mk_calibration_fini(imu_calibration->astddev, imu_calibration->gstddev,
-                      maxa, maxw);
+  mk_calibration_fini(
+    imu_calibration->astddev,
+    imu_calibration->gstddev,
+    imu_calibration->mstddev,
+    maxa, maxw);
   warnx("calibration max acceleration: "
         "x %.2fm/s², y %.2fm/s², z %.2fm/s²", maxa[0], maxa[1], maxa[2]);
   warnx("calibration max angular velocity: "
@@ -505,7 +530,7 @@ mk_set_zero_collect(const rotorcraft_imu *imu, double accum[3],
   accum[1] = (*n * accum[1] + imu_data->acc._value.ay) / (1 + *n);
   accum[2] = (*n * accum[2] + imu_data->acc._value.az) / (1 + *n);
 
-  return ((*n)++ < 2000.) ? rotorcraft_pause_collect : rotorcraft_main;
+  return ((*n)++ < 10000.) ? rotorcraft_pause_collect : rotorcraft_main;
 }
 
 /** Codel mk_set_zero of activity set_zero.
@@ -526,7 +551,7 @@ mk_set_zero(double accum[3], double gycum[3],
 
   roll = atan2(accum[1], accum[2]);
   cr = cos(roll);  sr = sin(roll);
-  pitch = atan2(-accum[0] * cr, accum[2]);
+  pitch = atan2(-accum[0], hypot(accum[1], accum[2]));
   cp = cos(pitch); sp = sin(pitch);
 
   r[0] = cp;   r[1] = sr * sp;  r[2] = cr * sp;
@@ -536,6 +561,7 @@ mk_set_zero(double accum[3], double gycum[3],
   mk_calibration_bias(gycum, imu_calibration->gscale, imu_calibration->gbias);
   mk_calibration_rotate(r, imu_calibration->gscale);
   mk_calibration_rotate(r, imu_calibration->ascale);
+  mk_calibration_rotate(r, imu_calibration->mscale);
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;

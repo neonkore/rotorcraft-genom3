@@ -88,6 +88,7 @@ component rotorcraft {
     struct imu_calibration_s {
       double gscale[9], gbias[3], gstddev[3];
       double ascale[9], abias[3], astddev[3];
+      double mscale[9], mbias[3], mstddev[3];
     } imu_calibration;
     boolean imu_calibration_updated;
 
@@ -346,7 +347,7 @@ component rotorcraft {
 
     codel<start> mk_calibrate_imu_start(in tstill, in nposes)
       yield collect;
-    codel<collect> mk_calibrate_imu_collect(in imu)
+    codel<collect> mk_calibrate_imu_collect(in imu, in mag)
       yield pause::collect, main;
     codel<main> mk_calibrate_imu_main(out imu_calibration,
                                       out imu_calibration_updated)

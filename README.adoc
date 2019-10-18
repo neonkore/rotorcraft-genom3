@@ -320,6 +320,9 @@ a|.Outputs
  ** `double` `ascale[9]` Accelerometers 3×3 scaling matrix (row major)
  ** `double` `abias[3]` Accelerometers bias vector
  ** `double` `astddev[3]` Accelerometers measurement noise
+ ** `double` `mscale[9]`
+ ** `double` `mbias[3]`
+ ** `double` `mstddev[3]`
 
 |===
 
@@ -341,6 +344,9 @@ a|.Inputs
  ** `double` `ascale[9]` Accelerometers 3×3 scaling matrix (row major)
  ** `double` `abias[3]` Accelerometers bias vector
  ** `double` `astddev[3]` Accelerometers measurement noise
+ ** `double` `mscale[9]`
+ ** `double` `mbias[3]`
+ ** `double` `mstddev[3]`
 
 |===
 
@@ -539,6 +545,7 @@ a|.Context
   * In task `<<main>>`
   (frequency 1000.0 _Hz_)
   * Updates port `<<imu>>`
+  * Updates port `<<mag>>`
   * Interrupts `<<calibrate_imu>>`
   * Interrupts `<<set_zero>>`
 |===

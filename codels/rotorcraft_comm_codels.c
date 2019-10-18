@@ -234,19 +234,32 @@ mk_comm_recv(rotorcraft_conn_s **conn,
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[0] = v16/1e8;
+          v[0] = v16/1e8 + imu_calibration->mbias[0];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[1] = v16/1e8;
+          v[1] = v16/1e8 + imu_calibration->mbias[1];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[2] = v16/1e8;
+          v[2] = v16/1e8 + imu_calibration->mbias[2];
 
-          mdata->att._value.qx = v[0];
-          mdata->att._value.qy = v[1];
-          mdata->att._value.qz = v[2];
+          mdata->att._value.qw = nan("");
+          mdata->att._value.qx += 1 * (
+            imu_calibration->mscale[0] * v[0] +
+            imu_calibration->mscale[1] * v[1] +
+            imu_calibration->mscale[2] * v[2]
+            - mdata->att._value.qx);
+          mdata->att._value.qy += 1 * (
+            imu_calibration->mscale[3] * v[0] +
+            imu_calibration->mscale[4] * v[1] +
+            imu_calibration->mscale[5] * v[2]
+            - mdata->att._value.qy);
+          mdata->att._value.qz += 1 * (
+            imu_calibration->mscale[6] * v[0] +
+            imu_calibration->mscale[7] * v[1] +
+            imu_calibration->mscale[8] * v[2]
+            - mdata->att._value.qz);
 
           mdata->att._present = true;
         } else
