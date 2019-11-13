@@ -93,8 +93,7 @@ component rotorcraft {
     boolean imu_calibration_updated;
 
     struct imu_filter_s {
-      boolean enable;
-      double gain, Q;
+      double galpha[3], aalpha[3], malpha[3];
     } imu_filter;
 
     /* rotors data */
@@ -146,7 +145,8 @@ component rotorcraft {
     doc "update rate may be lower than expected and the <<servo>> service";
     doc "will smoothly stop the motors.";
 
-    validate mk_set_sensor_rate(local in rate, in conn, out sensor_time);
+    validate mk_set_sensor_rate(local in rate, in conn, inout imu_filter,
+                                inout sensor_time);
   };
 
   attribute get_battery(out battery = {
@@ -198,9 +198,19 @@ component rotorcraft {
     validate mk_set_imu_calibration(out imu_calibration_updated);
   };
 
-  attribute get_imu_filter(out imu_filter);
-  attribute set_imu_filter(in imu_filter) {
-    validate mk_set_imu_filter(local in imu_filter);
+  function get_imu_filter(
+    out double gfc[3] =: "Gyroscope X,Y,Z cut-off frequencies",
+    out double afc[3] =: "Accelerometer X,Y,Z cut-off frequencies",
+    out double mfc[3] =: "Magnetometer X,Y,Z cut-off frequencies") {
+    codel rc_get_imu_filter(in imu_filter, in sensor_time.rate,
+                            out gfc, out afc, out mfc);
+  };
+  function set_imu_filter(
+    in double gfc[3] =: "Gyroscope X,Y,Z cut-off frequencies",
+    in double afc[3] =: "Accelerometer X,Y,Z cut-off frequencies",
+    in double mfc[3] =: "Magnetometer X,Y,Z cut-off frequencies") {
+    codel rc_set_imu_filter(in gfc, in afc, in mfc, in sensor_time.rate,
+                            out imu_filter);
   };
 
   attribute set_timeout(in servo.timeout = 30:"Startup timeout (s)") {
@@ -219,7 +229,7 @@ component rotorcraft {
     codel<start> mk_main_init(out ::ids, in imu, in mag)
       yield main;
     codel<main> mk_main_perm(in conn, in battery, in imu_calibration,
-                             in imu_filter, in rotor_data,
+                             in rotor_data,
                              inout sensor_time, inout publish_time,
                              inout imu_calibration_updated,
                              inout log, out rotor_measure, out imu, out mag)
@@ -238,7 +248,8 @@ component rotorcraft {
     codel<nodata> mk_comm_nodata(inout conn, inout sensor_time,
                                  out imu, out mag, out battery)
       yield poll;
-    codel<recv> mk_comm_recv(inout conn, in imu_calibration, inout sensor_time,
+    codel<recv> mk_comm_recv(inout conn, in imu_calibration, in imu_filter,
+                             inout sensor_time,
                              out imu, out mag, out rotor_data, out battery)
       yield poll, recv;
 

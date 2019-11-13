@@ -362,32 +362,34 @@ Input parameters are typically those returned by a call to
 '''
 
 [[get_imu_filter]]
-=== get_imu_filter (attribute)
+=== get_imu_filter (function)
 
 [role="small", width="50%", float="right", cols="1"]
 |===
 a|.Outputs
 [disc]
- * `struct ::rotorcraft::ids::imu_filter_s` `imu_filter`
- ** `boolean` `enable`
- ** `double` `gain`
- ** `double` `Q`
+ * `double` `gfc[3]` Gyroscope X,Y,Z cut-off frequencies
+
+ * `double` `afc[3]` Accelerometer X,Y,Z cut-off frequencies
+
+ * `double` `mfc[3]` Magnetometer X,Y,Z cut-off frequencies
 
 |===
 
 '''
 
 [[set_imu_filter]]
-=== set_imu_filter (attribute)
+=== set_imu_filter (function)
 
 [role="small", width="50%", float="right", cols="1"]
 |===
 a|.Inputs
 [disc]
- * `struct ::rotorcraft::ids::imu_filter_s` `imu_filter`
- ** `boolean` `enable`
- ** `double` `gain`
- ** `double` `Q`
+ * `double` `gfc[3]` Gyroscope X,Y,Z cut-off frequencies
+
+ * `double` `afc[3]` Accelerometer X,Y,Z cut-off frequencies
+
+ * `double` `mfc[3]` Magnetometer X,Y,Z cut-off frequencies
 
 |===
 

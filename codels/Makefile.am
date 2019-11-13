@@ -22,7 +22,6 @@ librotorcraft_codels_la_SOURCES+=	rotorcraft_main_codels.c
 librotorcraft_codels_la_SOURCES+=	rotorcraft_comm_codels.c
 librotorcraft_codels_la_SOURCES+=	tty.c
 librotorcraft_codels_la_SOURCES+=	calibration.cc
-librotorcraft_codels_la_SOURCES+=	filter.c
 librotorcraft_codels_la_SOURCES+=	codels.h
 
 librotorcraft_codels_la_CPPFLAGS=	$(requires_CFLAGS)

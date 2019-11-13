@@ -28,9 +28,6 @@
 
 /* --- Task main -------------------------------------------------------- */
 
-static struct mk_iir_filter Hax, Hay, Haz, Hwx, Hwy, Hwz;
-
-
 /** Codel mk_main_init of task main.
  *
  * Triggered by rotorcraft_start.
@@ -49,8 +46,14 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
   ids->publish_time = (rotorcraft_ids_publish_time_s){
     .imu = { 0 }, .mag =  { 0 }, .motor = {{ 0 }}
   };
+  ids->imu_filter = (rotorcraft_ids_imu_filter_s){
+    .galpha = { 1., 1., 1. },
+    .aalpha = { 1., 1., 1. },
+    .malpha = { 1., 1., 1. }
+  };
+
   e = mk_set_sensor_rate(
-    &ids->sensor_time.rate, NULL, &ids->sensor_time, self);
+    &ids->sensor_time.rate, NULL, &ids->imu_filter, &ids->sensor_time, self);
   if (e) return e;
 
   ids->battery.min = 14.0;
@@ -83,11 +86,6 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
     .mstddev = { 5e-2, 5e-2, 5e-2 },
   };
   ids->imu_calibration_updated = true;
-
-  ids->imu_filter.enable = false;
-  ids->imu_filter.gain = 0.05;
-  ids->imu_filter.Q = 5;
-  Hax = Hay = Haz = Hwx = Hwy = Hwz = MK_IIRF_INIT(nan(""));
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     ids->rotor_data.state[i] = (or_rotorcraft_rotor_state){
@@ -154,7 +152,6 @@ genom_event
 mk_main_perm(const rotorcraft_conn_s *conn,
              const rotorcraft_ids_battery_s *battery,
              const rotorcraft_ids_imu_calibration_s *imu_calibration,
-             const rotorcraft_ids_imu_filter_s *imu_filter,
              const rotorcraft_ids_rotor_data_s *rotor_data,
              rotorcraft_ids_sensor_time_s *sensor_time,
              rotorcraft_ids_publish_time_s *publish_time,
@@ -222,29 +219,6 @@ mk_main_perm(const rotorcraft_conn_s *conn,
 
     *imu_calibration_updated = false;
   }
-
-  /* filter IMU */
-  if (imu_filter->enable) {
-    int c;
-    double favg = 0.;
-
-    for(i = c = 0; i < or_rotorcraft_max_rotors; i++) {
-      if (rotor_data->wd[i] > 15.) { c++; favg += rotor_data->wd[i]; }
-    }
-
-    if (c) {
-      favg /= c;
-
-      idata->acc._value.ax = mk_imu_iirf(idata->acc._value.ax, &Hax, favg);
-      idata->acc._value.ay = mk_imu_iirf(idata->acc._value.ay, &Hay, favg);
-      idata->acc._value.az = mk_imu_iirf(idata->acc._value.az, &Haz, favg);
-
-      idata->avel._value.wx = mk_imu_iirf(idata->avel._value.wx, &Hwx, favg);
-      idata->avel._value.wy = mk_imu_iirf(idata->avel._value.wy, &Hwy, favg);
-      idata->avel._value.wz = mk_imu_iirf(idata->avel._value.wz, &Hwz, favg);
-    }
-  }
-
 
   /* publish, only if timestamps changed */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
@@ -561,7 +535,7 @@ mk_set_zero(double accum[3], double gycum[3],
   mk_calibration_bias(gycum, imu_calibration->gscale, imu_calibration->gbias);
   mk_calibration_rotate(r, imu_calibration->gscale);
   mk_calibration_rotate(r, imu_calibration->ascale);
-  mk_calibration_rotate(r, imu_calibration->mscale);
+  /* mk_calibration_rotate(r, imu_calibration->mscale); */
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;

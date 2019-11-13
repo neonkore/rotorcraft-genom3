@@ -157,7 +157,7 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
     m = accvar.maxCoeff();
     if (raw_data->accvarth > m) raw_data->accvarth = m;
 
-    if ((accvar.array() < 3 * raw_data->accvarth).all()) {
+    if ((accvar.array() < 100 * raw_data->accvarth).all()) {
       if (!raw_data->nstill)
         *still = 0;
 

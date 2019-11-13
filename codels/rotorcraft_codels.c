@@ -38,10 +38,10 @@
 genom_event
 mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
                    const rotorcraft_conn_s *conn,
+                   rotorcraft_ids_imu_filter_s *imu_filter,
                    rotorcraft_ids_sensor_time_s *sensor_time,
                    const genom_context self)
 {
-  uint32_t p;
   int i;
 
   if (rate->imu < 0. || rate->imu > 2000. ||
@@ -60,17 +60,27 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
   }
 
   /* reconfigure existing connection */
-  if (!conn) return genom_ok;
-  if (conn->chan.fd < 0) return genom_ok;
+  if (conn && conn->chan.fd >= 0) {
+    uint32_t p;
 
-  p = rate->battery > 0. ? 1000000/rate->battery : 0;
-  mk_send_msg(&conn->chan, "b%4", p);
-  p = rate->motor > 0. ? 1000000/rate->motor : 0;
-  mk_send_msg(&conn->chan, "m%4", p);
-  p = rate->imu > 0. ? 1000000/rate->imu : 0;
-  mk_send_msg(&conn->chan, "i%4", p);
-  p = rate->mag > 0. ? 1000000/rate->mag : 0;
-  mk_send_msg(&conn->chan, "c%4", p);
+    p = rate->battery > 0. ? 1000000/rate->battery : 0;
+    mk_send_msg(&conn->chan, "b%4", p);
+    p = rate->motor > 0. ? 1000000/rate->motor : 0;
+    mk_send_msg(&conn->chan, "m%4", p);
+    p = rate->imu > 0. ? 1000000/rate->imu : 0;
+    mk_send_msg(&conn->chan, "i%4", p);
+    p = rate->mag > 0. ? 1000000/rate->mag : 0;
+    mk_send_msg(&conn->chan, "c%4", p);
+  }
+
+  /* reconfigure filters */
+  if (imu_filter) {
+    double gfc[3], afc[3], mfc[3];
+
+    rc_get_imu_filter(imu_filter, &sensor_time->rate /* old rate */,
+                      gfc, afc, mfc, self);
+    rc_set_imu_filter(gfc, afc, mfc, rate /* new rate */, imu_filter, self);
+  }
 
   return genom_ok;
 }
@@ -107,26 +117,6 @@ mk_set_imu_calibration(bool *imu_calibration_updated,
   (void)self;
 
   *imu_calibration_updated = true;
-  return genom_ok;
-}
-
-
-/* --- Attribute set_imu_filter ----------------------------------------- */
-
-/** Validation codel mk_set_imu_filter of attribute set_imu_filter.
- *
- * Returns genom_ok.
- * Throws .
- */
-genom_event
-mk_set_imu_filter(const rotorcraft_ids_imu_filter_s *imu_filter,
-                  const genom_context self)
-{
-  (void)self;
-
-  if (imu_filter->enable)
-    mk_imu_iirf_init(1000. / rotorcraft_control_period_ms,
-                     imu_filter->gain, imu_filter->Q, 15, 143);
   return genom_ok;
 }
 
@@ -172,6 +162,95 @@ mk_validate_input(const or_rotorcraft_rotor_state state[8],
  */
 /* already defined in service set_velocity validation */
 
+
+
+/* --- Function get_imu_filter ------------------------------------------ */
+
+/** Codel rc_get_imu_filter of function get_imu_filter.
+ *
+ * Returns genom_ok.
+ */
+genom_event
+rc_get_imu_filter(const rotorcraft_ids_imu_filter_s *imu_filter,
+                  const rotorcraft_ids_sensor_time_s_rate_s *rate,
+                  double gfc[3], double afc[3], double mfc[3],
+                  const genom_context self)
+{
+  (void)self;
+  double wc;
+  unsigned int i;
+
+  wc = rate->imu * 0.5 / M_PI;
+  for(i = 0; i < 3; i++) {
+    if (imu_filter->galpha[i] < 1.)
+      gfc[i] = wc * imu_filter->galpha[i] / (1. - imu_filter->galpha[i]);
+    else
+      gfc[i] = 0.;
+
+    if (imu_filter->aalpha[i] < 1.)
+      afc[i] = wc * imu_filter->aalpha[i] / (1. - imu_filter->aalpha[i]);
+    else
+      afc[i] = 0.;
+  }
+
+  wc = rate->mag * 0.5 / M_PI;
+  for(i = 0; i < 3; i++)
+    if (imu_filter->malpha[i] < 1.)
+      mfc[i] = wc * imu_filter->malpha[i] / (1. - imu_filter->malpha[i]);
+    else
+      mfc[i] = 0.;
+
+  return genom_ok;
+}
+
+
+/* --- Function set_imu_filter ------------------------------------------ */
+
+/** Codel rc_set_imu_filter of function set_imu_filter.
+ *
+ * Returns genom_ok.
+ */
+genom_event
+rc_set_imu_filter(const double gfc[3], const double afc[3],
+                  const double mfc[3],
+                  const rotorcraft_ids_sensor_time_s_rate_s *rate,
+                  rotorcraft_ids_imu_filter_s *imu_filter,
+                  const genom_context self)
+{
+  (void)self;
+  double wc;
+  unsigned int i;
+
+  if (rate->imu > 0.)
+    wc = 2 * M_PI / rate->imu;
+  else
+    wc = 0.;
+
+  for(i = 0; i < 3; i++) {
+    if (gfc[i] > 0.)
+      imu_filter->galpha[i] = wc * gfc[i] / (wc * gfc[i] + 1);
+    else
+      imu_filter->galpha[i] = 1.;
+
+    if (afc[i] > 0.)
+      imu_filter->aalpha[i] = wc * afc[i] / (wc * afc[i] + 1);
+    else
+      imu_filter->aalpha[i] = 1.;
+  }
+
+  if (rate->mag > 0.)
+    wc = 2 * M_PI / rate->mag;
+  else
+    wc = 0.;
+
+  for(i = 0; i < 3; i++)
+    if (mfc[i] > 0.)
+      imu_filter->malpha[i] = wc * mfc[i] / (wc * mfc[i] + 1);
+    else
+      imu_filter->malpha[i] = 1.;
+
+  return genom_ok;
+}
 
 
 /* --- Function disable_motor ------------------------------------------- */

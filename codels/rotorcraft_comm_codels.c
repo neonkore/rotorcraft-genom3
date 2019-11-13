@@ -115,7 +115,7 @@ mk_comm_nodata(rotorcraft_conn_s **conn,
 
   battery->level = 0.;
 
-  if (mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self))
+  if (mk_set_sensor_rate(&sensor_time->rate, *conn, NULL, sensor_time, self))
     mk_disconnect_start(conn, self);
 
   return rotorcraft_poll;
@@ -131,6 +131,7 @@ mk_comm_nodata(rotorcraft_conn_s **conn,
 genom_event
 mk_comm_recv(rotorcraft_conn_s **conn,
              const rotorcraft_ids_imu_calibration_s *imu_calibration,
+             const rotorcraft_ids_imu_filter_s *imu_filter,
              rotorcraft_ids_sensor_time_s *sensor_time,
              const rotorcraft_imu *imu, const rotorcraft_mag *mag,
              rotorcraft_ids_rotor_data_s *rotor_data,
@@ -143,6 +144,7 @@ mk_comm_recv(rotorcraft_conn_s **conn,
   uint8_t *msg, len;
   int16_t v16;
   uint16_t u16;
+  double vc;
 
   more = 0;
   if (mk_recv_msg(&(*conn)->chan, false) == 1) {
@@ -160,6 +162,7 @@ mk_comm_recv(rotorcraft_conn_s **conn,
 
           if (seq == sensor_time->imu.seq) break;
 
+          /* accelerometer */
           mk_get_ts(
             seq, tv, sensor_time->rate.imu, &sensor_time->imu,
             &idata->ts, &sensor_time->measured_rate.imu);
@@ -176,19 +179,37 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           v16 |= ((uint16_t)(*msg++) << 0);
           v[2] = v16/1000. + imu_calibration->abias[2];
 
-          idata->acc._value.ax =
+          vc =
             imu_calibration->ascale[0] * v[0] +
             imu_calibration->ascale[1] * v[1] +
             imu_calibration->ascale[2] * v[2];
-          idata->acc._value.ay =
+          if (!isnan(idata->acc._value.ax))
+            idata->acc._value.ax +=
+              imu_filter->aalpha[0] * (vc - idata->acc._value.ax);
+          else
+            idata->acc._value.ax = vc;
+
+          vc =
             imu_calibration->ascale[3] * v[0] +
             imu_calibration->ascale[4] * v[1] +
             imu_calibration->ascale[5] * v[2];
-          idata->acc._value.az =
+          if (!isnan(idata->acc._value.ay))
+            idata->acc._value.ay +=
+              imu_filter->aalpha[1] * (vc - idata->acc._value.ay);
+          else
+            idata->acc._value.ay = vc;
+
+          vc =
             imu_calibration->ascale[6] * v[0] +
             imu_calibration->ascale[7] * v[1] +
             imu_calibration->ascale[8] * v[2];
+          if (!isnan(idata->acc._value.az))
+            idata->acc._value.az +=
+              imu_filter->aalpha[2] * (vc - idata->acc._value.az);
+          else
+            idata->acc._value.az = vc;
 
+          /* gyroscope */
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
           v[0] = v16/1000. + imu_calibration->gbias[0];
@@ -201,18 +222,35 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           v16 |= ((uint16_t)(*msg++) << 0);
           v[2] = v16/1000. + imu_calibration->gbias[2];
 
-          idata->avel._value.wx =
+          vc =
             imu_calibration->gscale[0] * v[0] +
             imu_calibration->gscale[1] * v[1] +
             imu_calibration->gscale[2] * v[2];
-          idata->avel._value.wy =
+          if (!isnan(idata->avel._value.wx))
+            idata->avel._value.wx +=
+              imu_filter->galpha[0] * (vc - idata->avel._value.wx);
+          else
+            idata->avel._value.wx = vc;
+
+          vc =
             imu_calibration->gscale[3] * v[0] +
             imu_calibration->gscale[4] * v[1] +
             imu_calibration->gscale[5] * v[2];
-          idata->avel._value.wz =
+          if (!isnan(idata->avel._value.wy))
+            idata->avel._value.wy +=
+              imu_filter->galpha[1] * (vc - idata->avel._value.wy);
+          else
+            idata->avel._value.wy = vc;
+
+          vc =
             imu_calibration->gscale[6] * v[0] +
             imu_calibration->gscale[7] * v[1] +
             imu_calibration->gscale[8] * v[2];
+          if (!isnan(idata->avel._value.wz))
+            idata->avel._value.wz +=
+              imu_filter->galpha[2] * (vc - idata->avel._value.wz);
+          else
+            idata->avel._value.wz = vc;
 
           idata->avel._present = true;
           idata->acc._present = true;
@@ -245,21 +283,36 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           v[2] = v16/1e8 + imu_calibration->mbias[2];
 
           mdata->att._value.qw = nan("");
-          mdata->att._value.qx += 1 * (
+
+          vc =
             imu_calibration->mscale[0] * v[0] +
             imu_calibration->mscale[1] * v[1] +
-            imu_calibration->mscale[2] * v[2]
-            - mdata->att._value.qx);
-          mdata->att._value.qy += 1 * (
+            imu_calibration->mscale[2] * v[2];
+          if (!isnan(mdata->att._value.qx))
+            mdata->att._value.qx +=
+              imu_filter->malpha[0] * (vc - mdata->att._value.qx);
+          else
+            mdata->att._value.qx = vc;
+
+          vc =
             imu_calibration->mscale[3] * v[0] +
             imu_calibration->mscale[4] * v[1] +
-            imu_calibration->mscale[5] * v[2]
-            - mdata->att._value.qy);
-          mdata->att._value.qz += 1 * (
+            imu_calibration->mscale[5] * v[2];
+          if (!isnan(mdata->att._value.qy))
+            mdata->att._value.qy +=
+              imu_filter->malpha[1] * (vc - mdata->att._value.qy);
+          else
+            mdata->att._value.qy = vc;
+
+          vc =
             imu_calibration->mscale[6] * v[0] +
             imu_calibration->mscale[7] * v[1] +
-            imu_calibration->mscale[8] * v[2]
-            - mdata->att._value.qz);
+            imu_calibration->mscale[8] * v[2];
+          if (!isnan(mdata->att._value.qz))
+            mdata->att._value.qz +=
+              imu_filter->malpha[2] * (vc - mdata->att._value.qz);
+          else
+            mdata->att._value.qz = vc;
 
           mdata->att._present = true;
         } else
@@ -358,7 +411,8 @@ mk_comm_stop(rotorcraft_conn_s **conn, const genom_context self)
 
   mk_send_msg(&(*conn)->chan, "x");
   mk_set_sensor_rate(
-    &(struct rotorcraft_ids_sensor_time_s_rate_s){ 0 }, *conn, NULL, self);
+    &(struct rotorcraft_ids_sensor_time_s_rate_s){ 0 }, *conn,
+    NULL, NULL, self);
 
   return rotorcraft_ether;
 }
@@ -459,7 +513,7 @@ mk_connect_start(const char serial[64], uint32_t baud,
   warnx("connected to %s, %s", &(*conn)->chan.msg[1], (*conn)->chan.path);
 
   /* configure data streaming */
-  mk_set_sensor_rate(&sensor_time->rate, *conn, sensor_time, self);
+  mk_set_sensor_rate(&sensor_time->rate, *conn, NULL, sensor_time, self);
 
   return rotorcraft_ether;
 }
@@ -481,7 +535,7 @@ mk_disconnect_start(rotorcraft_conn_s **conn,
   mk_set_sensor_rate(
     &(struct rotorcraft_ids_sensor_time_s_rate_s){
       .imu = 0, .motor = 0, .battery = 0
-        }, *conn, NULL, self);
+        }, *conn, NULL, NULL, self);
 
   if ((*conn)->chan.fd >= 0) {
     close((*conn)->chan.fd);
@@ -544,7 +598,7 @@ mk_get_ts(uint8_t seq, struct timeval atv, double rate,
     timings->rgain *= 2;
   else
     timings->rgain /= 2;
-  if (timings->rgain < 0.1) timings->rgain = 0.1;
+  if (timings->rgain < 0.01) timings->rgain = 0.01;
 
   if (df > timings->rmed)
     timings->rmed += timings->rgain;
