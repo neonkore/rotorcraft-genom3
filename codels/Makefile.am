@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015-2019 LAAS/CNRS
+# Copyright (c) 2015-2020 LAAS/CNRS
 # All rights reserved.
 #
 # Redistribution and use  in source  and binary  forms,  with or without
@@ -16,22 +16,22 @@
 #
 lib_LTLIBRARIES = librotorcraft_codels.la
 
-librotorcraft_codels_la_SOURCES=	rotorcraft_c_types.h
-librotorcraft_codels_la_SOURCES+=	rotorcraft_codels.c
-librotorcraft_codels_la_SOURCES+=	rotorcraft_main_codels.c
-librotorcraft_codels_la_SOURCES+=	rotorcraft_comm_codels.c
-librotorcraft_codels_la_SOURCES+=	tty.c
-librotorcraft_codels_la_SOURCES+=	calibration.cc
-librotorcraft_codels_la_SOURCES+=	codels.h
+librotorcraft_codels_la_SOURCES  =	rotorcraft_c_types.h
+librotorcraft_codels_la_SOURCES +=	rotorcraft_codels.c
+librotorcraft_codels_la_SOURCES +=	rotorcraft_main_codels.c
+librotorcraft_codels_la_SOURCES +=	rotorcraft_comm_codels.c
+librotorcraft_codels_la_SOURCES +=	tty.c
+librotorcraft_codels_la_SOURCES +=	calibration.cc
+librotorcraft_codels_la_SOURCES +=	codels.h
 
-librotorcraft_codels_la_CPPFLAGS=	$(requires_CFLAGS)
-librotorcraft_codels_la_LDFLAGS=	$(requires_LIBS)
+librotorcraft_codels_la_CPPFLAGS =	$(requires_CFLAGS)
+librotorcraft_codels_la_LIBADD   =	$(requires_LIBS)
 librotorcraft_codels_la_CPPFLAGS+=	$(codels_requires_CFLAGS)
-librotorcraft_codels_la_LDFLAGS+=	$(codels_requires_LIBS)
-librotorcraft_codels_la_LDFLAGS+=	-release $(PACKAGE_VERSION)
+librotorcraft_codels_la_LIBADD  +=	$(codels_requires_LIBS)
+librotorcraft_codels_la_LDFLAGS  =	-release $(PACKAGE_VERSION)
 
 librotorcraft_codels_la_CPPFLAGS+=	$(libudev_CFLAGS)
-librotorcraft_codels_la_LDFLAGS+=	$(libudev_LIBS)
+librotorcraft_codels_la_LIBADD  +=	$(libudev_LIBS)
 
 # idl  mappings
 BUILT_SOURCES=	rotorcraft_c_types.h
