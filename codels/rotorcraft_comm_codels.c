@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 LAAS/CNRS
+ * Copyright (c) 2015-2020 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -581,7 +581,6 @@ mk_get_ts(uint8_t seq, struct timeval atv, double rate,
 
   double ats, df;
   uint8_t ds;
-  assert(rate > 0.);
 
   /* arrival timestamp - offset for better floating point precision */
   ats = (atv.tv_sec - tsshift) + atv.tv_usec * 1e-6;
@@ -613,14 +612,20 @@ mk_get_ts(uint8_t seq, struct timeval atv, double rate,
     /* if too many samples were lost, we might have missed more than 255
      * samples: reset the offset */
     timings->offset = -DBL_MAX;
-  else
-    /* consider a 0.1% clock drift on the sender side */
+  else if (rate > 0.1)
+    /* consider a 0.1% clock drift on the sender side (for rates >0.1Hz) */
     timings->offset -= 0.001 * ds / rate;
+  else
+    timings->offset = 0.;
 
   /* update remote timestamp */
   timings->last = ats;
-  timings->ts += ds / rate;
   timings->seq = seq;
+  if (rate > 0.1)
+    timings->ts += ds / rate;
+  else
+    /* for tiny rates, just use arrival timestamp */
+    timings->ts = ats;
 
   /* update offset */
   if (timings->ts - ats > timings->offset)

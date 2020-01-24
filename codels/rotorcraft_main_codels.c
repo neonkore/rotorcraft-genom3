@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 LAAS/CNRS
+ * Copyright (c) 2015-2020 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -257,13 +257,13 @@ mk_main_perm(const rotorcraft_conn_s *conn,
     rate = 1./ (
       tv.tv_sec - idata->ts.sec +
       (1 + tv.tv_usec * 1000 - idata->ts.nsec) * 1e-9)	;
-    if (rate < 0.1 * sensor_time->rate.imu)
+    if (rate < 0.1 * sensor_time->rate.imu || sensor_time->rate.imu < 0.1)
       sensor_time->measured_rate.imu = 0.;
 
     rate = 1./ (
       tv.tv_sec - mdata->ts.sec +
       (1 + tv.tv_usec * 1000 - mdata->ts.nsec) * 1e-9)	;
-    if (rate < 0.1 * sensor_time->rate.mag)
+    if (rate < 0.1 * sensor_time->rate.mag || sensor_time->rate.mag < 0.1)
       sensor_time->measured_rate.mag = 0.;
 
     for(i = 0; i < or_rotorcraft_max_rotors; i++) {
@@ -272,7 +272,8 @@ mk_main_perm(const rotorcraft_conn_s *conn,
       rate = 1. / (
         tv.tv_sec - rotor_data->state[i].ts.sec +
         (1 + tv.tv_usec * 1000 - rotor_data->state[i].ts.nsec) * 1e-9);
-      if (rate < 0.1 * sensor_time->rate.motor) {
+      if (rate < 0.1 * sensor_time->rate.motor ||
+          sensor_time->rate.motor < 0.1) {
         sensor_time->measured_rate.motor = 0.;
       }
     }
