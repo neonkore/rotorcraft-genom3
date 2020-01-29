@@ -727,8 +727,8 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   }
 
   /* check sensor rate */
-  if (sensor_time->measured_rate.imu < 0.9 * sensor_time->rate.imu ||
-      sensor_time->measured_rate.motor < 0.9 * sensor_time->rate.motor) {
+  if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
+      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
 
     *scale -= 2e-3 * rotorcraft_control_period_ms / servo->ramp;
     if (*scale < 0.) {
