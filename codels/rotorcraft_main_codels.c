@@ -753,7 +753,7 @@ mk_servo_main(const rotorcraft_conn_s *conn,
    * emergency */
   if (*scale < 1.) {
     size_t i;
-    for(i = 0; i < input_data->desired._length; i++)
+    for(i = 0; i < desired._length; i++)
       desired._buffer[i] *= *scale;
 
     *scale += 1e-3 * rotorcraft_control_period_ms / servo->ramp;
