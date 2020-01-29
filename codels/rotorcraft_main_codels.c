@@ -601,12 +601,7 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
   size_t i;
   bool complete;
 
-  if (!(*timeout)--) {
-    mk_send_msg(&conn->chan, "x");
-    errno = EAGAIN;
-    return mk_e_sys_error("start", self);
-  }
-
+  (*timeout)--;
   complete = true;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) {
@@ -636,12 +631,26 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
     complete = false;
   }
 
+  if (!complete) {
+    if (!*timeout) {
+      mk_send_msg(&conn->chan, "x");
+      errno = EAGAIN;
+      return mk_e_sys_error("start", self);
+    }
+    return rotorcraft_pause_monitor;
+  }
+
   /* check sensor rate */
   if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
-      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor)
-    complete = false;
+      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
+    if (!*timeout) {
+      mk_send_msg(&conn->chan, "x");
+      return rotorcraft_e_rate(self);
+    }
+    return rotorcraft_pause_monitor;
+  }
 
-  return complete ? rotorcraft_ether : rotorcraft_pause_monitor;
+  return rotorcraft_ether;
 }
 
 /** Codel mk_start_stop of activity start.
