@@ -386,6 +386,10 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           warnx("bad clock rate message");
         break;
 
+      case 'E': /* error messages */
+        warnx("hardware error: %.*s", len-1, msg);
+        break;
+
       case '?': /* ignored messages */
         break;
 
