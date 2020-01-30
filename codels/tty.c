@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 LAAS/CNRS
+ * Copyright (c) 2015-2020 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -67,7 +67,7 @@ mk_open_tty(const char *device, uint32_t speed)
 # define B2000000 2000000U
 #endif
   switch(speed) {
-    case 0:		break;
+    case 0:		baud = 0; break;
     case 57600:		baud = B57600; break;
     case 115200:	baud = B115200; break;
     case 500000:	baud = B500000; break;
