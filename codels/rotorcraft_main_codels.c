@@ -739,8 +739,11 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
       sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
 
+    if (*scale >= 1.) warnx("low sensor rate, scaling input down");
+
     *scale -= 2e-3 * rotorcraft_control_period_ms / servo->ramp;
     if (*scale < 0.) {
+      warnx("stopped because of low sensor rate");
       mk_stop(conn, rotor_data->state, self);
       return rotorcraft_e_rate(self);
     }
