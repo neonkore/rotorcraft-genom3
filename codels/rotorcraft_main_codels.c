@@ -551,7 +551,7 @@ mk_set_zero(double accum[3], double gycum[3],
  * Yields to rotorcraft_pause_start, rotorcraft_monitor.
  * Throws rotorcraft_e_connection, rotorcraft_e_started,
  *        rotorcraft_e_sys, rotorcraft_e_rotor_failure,
- *        rotorcraft_e_rotor_not_disabled.
+ *        rotorcraft_e_rate, rotorcraft_e_rotor_not_disabled.
  */
 genom_event
 mk_start_start(const rotorcraft_conn_s *conn,
@@ -587,7 +587,7 @@ mk_start_start(const rotorcraft_conn_s *conn,
  * Yields to rotorcraft_pause_monitor, rotorcraft_ether.
  * Throws rotorcraft_e_connection, rotorcraft_e_started,
  *        rotorcraft_e_sys, rotorcraft_e_rotor_failure,
- *        rotorcraft_e_rotor_not_disabled.
+ *        rotorcraft_e_rate, rotorcraft_e_rotor_not_disabled.
  */
 genom_event
 mk_start_monitor(const rotorcraft_conn_s *conn,
@@ -659,7 +659,7 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
  * Yields to rotorcraft_pause_stop, rotorcraft_ether.
  * Throws rotorcraft_e_connection, rotorcraft_e_started,
  *        rotorcraft_e_sys, rotorcraft_e_rotor_failure,
- *        rotorcraft_e_rotor_not_disabled.
+ *        rotorcraft_e_rate, rotorcraft_e_rotor_not_disabled.
  */
 genom_event
 mk_start_stop(const rotorcraft_conn_s *conn,

@@ -1,5 +1,5 @@
 /*/
- * Copyright (c) 2015-2019 LAAS/CNRS
+ * Copyright (c) 2015-2020 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -428,7 +428,7 @@ component rotorcraft {
       yield pause::stop, ether;
 
     interrupt start;
-    throw e_connection, e_started, e_sys, e_rotor_failure,
+    throw e_connection, e_started, e_sys, e_rotor_failure, e_rate,
       e_rotor_not_disabled;
   };
 
