@@ -693,6 +693,7 @@ a|.Context
   * In task `<<main>>`
   (frequency 1000.0 _Hz_)
   * Reads port `<<rotor_input>>`
+  * Interrupts `<<servo>>`
 |===
 
 Control the propellers according to the given velocities

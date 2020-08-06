@@ -447,6 +447,7 @@ component rotorcraft {
     codel<stop> mk_servo_stop(in conn)
       yield ether;
 
+    interrupt servo;
     throw e_connection, e_rotor_failure, e_rate, e_input;
   };
 
