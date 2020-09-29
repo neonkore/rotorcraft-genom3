@@ -347,9 +347,22 @@ mk_recv_msg(struct mk_channel_s *chan, bool block)
 
         case '$':
           if (!chan->start) break;
-
           chan->start = false;
-          return 1;
+
+          switch(chan->msg[0]) {
+            case 'N': /* info messages */
+              warnx("hardware info: %.*s", chan->len-1, &chan->msg[1]);
+              break;
+            case 'A': /* warning messages */
+              warnx("hardware warning: %.*s", chan->len-1, &chan->msg[1]);
+              break;
+            case 'E': /* error messages */
+              warnx("hardware error: %.*s", chan->len-1, &chan->msg[1]);
+              break;
+
+            default: return 1;
+          }
+          break;
 
         case '!':
           chan->start = false;
