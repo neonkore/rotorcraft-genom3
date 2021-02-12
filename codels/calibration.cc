@@ -438,8 +438,8 @@ mk_calibration_mag(double mscale[9], double mbias[3])
   /* get min/max magnetometer data */
   Eigen::Matrix<double, 3, 1> max, min;
 
-  max = raw_data->mag.rowwise().maxCoeff();
-  min = raw_data->mag.rowwise().minCoeff();
+  max = raw_data->mag.leftCols(raw_data->samples).rowwise().maxCoeff();
+  min = raw_data->mag.leftCols(raw_data->samples).rowwise().minCoeff();
 
   b1 = - (max + min)/2;
   l1 = (max - min)/2;
