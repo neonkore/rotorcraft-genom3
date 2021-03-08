@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 LAAS/CNRS
+ * Copyright (c) 2015-2021 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -432,15 +432,21 @@ mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
   int s;
 
   s = mk_calibration_acc(imu_calibration->ascale, imu_calibration->abias);
-  if (!s)
-    s = mk_calibration_gyr(imu_calibration->gscale, imu_calibration->gbias);
-  if (!s)
-    s = mk_calibration_mag(imu_calibration->mscale, imu_calibration->mbias);
-
   if (s) {
-    mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
-    errno = s;
-    return mk_e_sys_error("calibration", self);
+    warnx("accelerometer calibration failed");
+    goto fail;
+  }
+
+  s = mk_calibration_gyr(imu_calibration->gscale, imu_calibration->gbias);
+  if (s) {
+    warnx("gyroscope calibration failed");
+    goto fail;
+  }
+
+  s = mk_calibration_mag(imu_calibration->mscale, imu_calibration->mbias);
+  if (s) {
+    warnx("magnetometer calibration failed");
+    goto fail;
   }
 
   mk_calibration_fini(
@@ -456,6 +462,11 @@ mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;
+
+fail:
+  mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
+  errno = s;
+  return mk_e_sys_error("calibration", self);
 }
 
 

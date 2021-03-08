@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019 LAAS/CNRS
+ * Copyright (c) 2015-2019,2021 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -428,24 +428,76 @@ mk_calibration_gyr(double gscale[9], double gbias[3])
 
 /* --- mk_calibration_mag -------------------------------------------------- */
 
+struct mk_calibration_mag_errfunc {
+  typedef double Scalar;
+  enum {
+    InputsAtCompileTime = 9,
+    ValuesAtCompileTime = Eigen::Dynamic
+  };
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> InputType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> ValueType;
+  typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
+
+  double norm2;
+
+  int operator()(const InputType &theta, ValueType &L) const {
+    Eigen::Matrix<Scalar, 3, 3> S;
+    Eigen::Matrix<Scalar, 3, 1> b;
+    int32_t i;
+
+    S <<
+      theta(3),  theta(0) * theta(4),  theta(1) * theta(5),
+            0.,             theta(4),  theta(2) * theta(5),
+            0.,                   0.,             theta(5);
+    b <<
+      theta(6),
+      theta(7),
+      theta(8);
+
+    for(i = 0; i < raw_data->samples; i++)
+      L(i) = norm2 - (S * (raw_data->mag.col(i) + b)).squaredNorm();
+
+    return 0;
+  }
+
+  int inputs() const { return InputsAtCompileTime; }
+  int values() const { return raw_data->samples; }
+};
+
 int
 mk_calibration_mag(double mscale[9], double mbias[3])
 {
-  Eigen::Matrix<double, 3, 1> b1, l1;
-  Eigen::Matrix<double, 3, 3> S1 = Eigen::Matrix<double, 3, 3>::Identity();
-  double n;
+  Eigen::NumericalDiff<mk_calibration_mag_errfunc> errfunc;
+  double norm;
 
-  /* get min/max magnetometer data */
-  Eigen::Matrix<double, 3, 1> max, min;
+  /* get average norm */
+  norm = raw_data->mag.leftCols(raw_data->samples).colwise().norm().mean();
+  errfunc.norm2 = norm * norm;
 
-  max = raw_data->mag.leftCols(raw_data->samples).rowwise().maxCoeff();
-  min = raw_data->mag.leftCols(raw_data->samples).rowwise().minCoeff();
+  Eigen::Matrix<double, Eigen::Dynamic, 1> theta(9);
+  Eigen::LevenbergMarquardt<
+    Eigen::NumericalDiff<mk_calibration_mag_errfunc> > lm(errfunc);
+  Eigen::Matrix<double, 3, 3> S1;
+  Eigen::Matrix<double, 3, 1> b1;
+  int s;
 
-  b1 = - (max + min)/2;
-  l1 = (max - min)/2;
-  n = l1.lpNorm<1>()/3;
+  theta <<
+    0., 0., 0.,
+    1., 1., 1.,
+    0., 0., 0.;
 
-  S1.diagonal() = (n / l1.array());
+  s = lm.minimize(theta);
+  if (s <= 0) return EINVAL;
+  if (s > 3) return ERANGE;
+
+  S1 <<
+      theta(3),  theta(0) * theta(4),  theta(1) * theta(5),
+            0.,             theta(4),  theta(2) * theta(5),
+            0.,                   0.,             theta(5);
+  b1 <<
+      theta(6),
+      theta(7),
+      theta(8);
 
   /* update old scale S0 and bias b0 with new S1 and b1 so that we now read
    * S1.( S0.(a + b0) + b1 ), i.e. S = S1.S0 and b = b0 + S0^-1.b1 */
