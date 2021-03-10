@@ -468,18 +468,23 @@ int
 mk_calibration_mag(double mscale[9], double mbias[3])
 {
   Eigen::NumericalDiff<mk_calibration_mag_errfunc> errfunc;
+  Eigen::Matrix<double, 3, 1> max, min;
   double norm;
 
-  /* get average norm */
-  norm = raw_data->mag.leftCols(raw_data->samples).colwise().norm().mean();
-  errfunc.norm2 = norm * norm;
+  /* get expected norm by computing simple min/max average */
+  max = raw_data->mag.leftCols(raw_data->samples).rowwise().maxCoeff();
+  min = raw_data->mag.leftCols(raw_data->samples).rowwise().minCoeff();
+  norm = (max - min).mean()/2;
 
+  /* fit a sphere with computed norm */
   Eigen::Matrix<double, Eigen::Dynamic, 1> theta(9);
   Eigen::LevenbergMarquardt<
     Eigen::NumericalDiff<mk_calibration_mag_errfunc> > lm(errfunc);
   Eigen::Matrix<double, 3, 3> S1;
   Eigen::Matrix<double, 3, 1> b1;
   int s;
+
+  errfunc.norm2 = norm * norm;
 
   theta <<
     0., 0., 0.,
