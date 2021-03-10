@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 LAAS/CNRS
+ * Copyright (c) 2015-2021 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -22,6 +22,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "rotorcraft_c_types.h"
@@ -401,16 +402,54 @@ mk_set_throttle(const rotorcraft_conn_s *conn,
  */
 genom_event
 mk_log_start(const char path[64], uint32_t decimation,
+             const rotorcraft_ids_imu_calibration_s *imu_calibration,
              rotorcraft_log_s **log, const genom_context self)
 {
+  time_t t;
   int fd;
+  int s;
+
+  t = time(NULL);
 
   fd = open(path, O_WRONLY|O_APPEND|O_CREAT|O_TRUNC, 0666);
   if (fd < 0) return mk_e_sys_error(path, self);
 
-  if (write(
-        fd, rotorcraft_log_header "\n", sizeof(rotorcraft_log_header)) < 0)
-    return mk_e_sys_error(path, self);
+  s = dprintf(
+    fd,
+    "# %s" /* ctime(3) has a \n */
+    "# IMU calibration\n"
+#define mk_log_cal(x)                           \
+    "# " #x "scale {\n"                         \
+    "#  0 %20g  1 %20g  2 %20g\n"               \
+    "#  3 %20g  4 %20g  5 %20g\n"               \
+    "#  6 %20g  7 %20g  8 %20g\n"               \
+    "# }\n"                                     \
+    "# " #x "bias {\n"                          \
+    "#  0 %20g  1 %20g  2 %20g\n"               \
+    "# }\n"                                     \
+    "# " #x "stddev {\n"                        \
+    "#  0 %20g  1 %20g  2 %20g\n"               \
+    "# }\n"
+
+    mk_log_cal(g) mk_log_cal(a) mk_log_cal(m)
+#undef mk_log_cal
+    "\n"
+    rotorcraft_log_header "\n",
+
+    ctime(&t),
+#define mk_calm(x, y) imu_calibration->x ## y
+#define mk_log_cal(x)                                                   \
+    mk_calm(x, scale)[0], mk_calm(x, scale)[1], mk_calm(x, scale)[2],   \
+    mk_calm(x, scale)[3], mk_calm(x, scale)[4], mk_calm(x, scale)[5],   \
+    mk_calm(x, scale)[6], mk_calm(x, scale)[7], mk_calm(x, scale)[8],   \
+    mk_calm(x, bias)[0], mk_calm(x, bias)[1], mk_calm(x, bias)[2],      \
+    mk_calm(x, stddev)[0], mk_calm(x, stddev)[1], mk_calm(x, stddev)[2]
+
+    mk_log_cal(g), mk_log_cal(a), mk_log_cal(m)
+#undef mk_log_cal
+#undef mk_calm
+    );
+  if (s < 0) return mk_e_sys_error(path, self);
 
   if ((*log)->req.aio_fildes >= 0) {
     close((*log)->req.aio_fildes);
