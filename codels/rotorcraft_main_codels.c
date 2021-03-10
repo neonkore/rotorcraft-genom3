@@ -401,7 +401,7 @@ mk_calibrate_imu_collect(const rotorcraft_imu *imu,
 
     case EAGAIN:
       if (still == 0)
-        warnx("stay still");
+        warnx("acquiring next position, stay still");
       else if (still > 0)
         warnx("calibration acquired pose %d", still);
       return rotorcraft_pause_collect;
@@ -459,6 +459,60 @@ mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
   warnx("calibration max angular velocity: "
         "x %.2f⁰/s, y %.2f⁰/s, z %.2f⁰/s",
         maxw[0] * 180./M_PI, maxw[1] * 180./M_PI, maxw[2] * 180./M_PI);
+
+  *imu_calibration_updated = true;
+  return rotorcraft_ether;
+
+fail:
+  mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
+  errno = s;
+  return mk_e_sys_error("calibration", self);
+}
+
+
+/* --- Activity calibrate_mag ------------------------------------------- */
+
+/** Codel mk_calibrate_mag_start of activity calibrate_mag.
+ *
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_collect.
+ * Throws rotorcraft_e_sys, rotorcraft_e_connection.
+ */
+genom_event
+mk_calibrate_mag_start(double tstill, const genom_context self)
+{
+  return mk_calibrate_imu_start(tstill, 2, self);
+}
+
+/** Codel mk_calibrate_imu_collect of activity calibrate_mag.
+ *
+ * Triggered by rotorcraft_collect.
+ * Yields to rotorcraft_pause_collect, rotorcraft_main.
+ * Throws rotorcraft_e_sys, rotorcraft_e_connection.
+ */
+/* already defined in service calibrate_imu */
+
+
+/** Codel mk_calibrate_mag_main of activity calibrate_mag.
+ *
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys, rotorcraft_e_connection.
+ */
+genom_event
+mk_calibrate_mag_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
+                      bool *imu_calibration_updated,
+                      const genom_context self)
+{
+  int s;
+
+  s = mk_calibration_mag(imu_calibration->mscale, imu_calibration->mbias);
+  if (s) {
+    warnx("magnetometer calibration failed");
+    goto fail;
+  }
+
+  mk_calibration_fini(NULL, NULL, imu_calibration->mstddev, NULL, NULL);
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;

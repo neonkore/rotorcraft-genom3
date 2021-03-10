@@ -310,12 +310,12 @@ component rotorcraft {
   activity calibrate_imu(
     in double tstill = 2 :"Duration in seconds of standstill positions",
     in unsigned short nposes = 10 :"Number of different standstill positions") {
-    doc "Calibrate accelerometers and gyroscopes.";
+    doc "Calibrate accelerometers, gyroscopes and magnetometer.";
     doc	"";
     doc "This service computes the `3×3` scaling matrices and `3D` bias vector";
-    doc "for both gyroscopes and accelerometers so that all data is returned";
-    doc "in a consistent, orthogonal frame of reference. This is done by";
-    doc "implementing the paper '`A robust and easy to implement method for";
+    doc "for gyroscopes, accelerometers and magnetometers so that all data is";
+    doc "returned in a consistent, orthogonal frame of reference. This is done";
+    doc "by implementing the paper '`A robust and easy to implement method for";
     doc "IMU calibration without external equipments, ICRA 2014`'. It requires";
     doc "no external sensor and a minimum of 10 static poses spanning the";
     doc "whole SO(3) space, with moderate motion in between. The standard";
@@ -323,7 +323,9 @@ component rotorcraft {
     doc "";
     doc "The `tstill` parameter controls the time after which a standstill";
     doc "position is detected (2 seconds is fine), while `nposes` sets the";
-    doc "required number of such standstill positions (minimum 10).";
+    doc "required number of such standstill positions (minimum 10). The ";
+    doc "duration of motion between two standstill positions must not exceed";
+    doc "thirty times the `tstill` parameter (60 seconds by default).";
     doc "";
     doc "While running the calibration, a progress indication will be reported";
     doc "to the standard output of the component. You should first set the";
@@ -366,7 +368,35 @@ component rotorcraft {
 
     throw e_sys, e_connection;
 
-    interrupt calibrate_imu, set_zero;
+    interrupt calibrate_imu, calibrate_mag, set_zero;
+  };
+
+  activity calibrate_mag(
+    in double tstill = 2 :"Duration in seconds of standstill positions") {
+    doc "Calibrate magnetometer.";
+    doc	"";
+    doc "This service computes the `3×3` scaling matrices and `3D` bias vector";
+    doc "for the magnetometers. This is a stripped down version of ";
+    doc "<<calibrate_imu>>, which see.";
+    doc "";
+    doc "Two standstill positions are required, with a motion not exceeding";
+    doc "thirty times the `tsill` parameter (2 by default, so 60s of motion).";
+    doc "The motion should cover the full SO(3) space for best results.";
+    doc "";
+
+    task	main;
+
+    codel<start> mk_calibrate_mag_start(in tstill)
+      yield collect;
+    codel<collect> mk_calibrate_imu_collect(in imu, in mag)
+      yield pause::collect, main;
+    codel<main> mk_calibrate_mag_main(out imu_calibration,
+                                      out imu_calibration_updated)
+      yield ether;
+
+    throw e_sys, e_connection;
+
+    interrupt calibrate_imu, calibrate_mag, set_zero;
   };
 
   activity set_zero() {

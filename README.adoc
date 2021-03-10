@@ -549,15 +549,16 @@ a|.Context
   * Updates port `<<imu>>`
   * Updates port `<<mag>>`
   * Interrupts `<<calibrate_imu>>`
+  * Interrupts `<<calibrate_mag>>`
   * Interrupts `<<set_zero>>`
 |===
 
-Calibrate accelerometers and gyroscopes.
+Calibrate accelerometers, gyroscopes and magnetometer.
 
 This service computes the `3×3` scaling matrices and `3D` bias vector
-for both gyroscopes and accelerometers so that all data is returned
-in a consistent, orthogonal frame of reference. This is done by
-implementing the paper '`A robust and easy to implement method for
+for gyroscopes, accelerometers and magnetometers so that all data is
+returned in a consistent, orthogonal frame of reference. This is done
+by implementing the paper '`A robust and easy to implement method for
 IMU calibration without external equipments, ICRA 2014`'. It requires
 no external sensor and a minimum of 10 static poses spanning the
 whole SO(3) space, with moderate motion in between. The standard
@@ -565,7 +566,9 @@ deviation of the sensor noise is also estimated.
 
 The `tstill` parameter controls the time after which a standstill
 position is detected (2 seconds is fine), while `nposes` sets the
-required number of such standstill positions (minimum 10).
+required number of such standstill positions (minimum 10). The 
+duration of motion between two standstill positions must not exceed
+thirty times the `tstill` parameter (60 seconds by default).
 
 While running the calibration, a progress indication will be reported
 to the standard output of the component. You should first set the
@@ -595,6 +598,47 @@ component, so that you can load them with
 CAUTION: This procedure does not set any particular vertical axis
 and the IMU will typically end up calibrated but not aligned with the
 gravity. Use <<set_zero>> (after calibration) to align the IMU.
+
+'''
+
+[[calibrate_mag]]
+=== calibrate_mag (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `tstill` (default `"2"`) Duration in seconds of standstill positions
+
+a|.Throws
+[disc]
+ * `exception ::rotorcraft::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+ * `exception ::rotorcraft::e_connection`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Updates port `<<imu>>`
+  * Updates port `<<mag>>`
+  * Interrupts `<<calibrate_imu>>`
+  * Interrupts `<<calibrate_mag>>`
+  * Interrupts `<<set_zero>>`
+|===
+
+Calibrate magnetometer.
+
+This service computes the `3×3` scaling matrices and `3D` bias vector
+for the magnetometers. This is a stripped down version of 
+<<calibrate_imu>>, which see.
+
+Two standstill positions are required, with a motion not exceeding
+thirty times the `tsill` parameter (2 by default, so 60s of motion).
+The motion should cover the full SO(3) space for best results.
+
 
 '''
 

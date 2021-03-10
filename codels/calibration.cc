@@ -170,7 +170,7 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
 
         *still = raw_data->still.cols();
       }
-      if (raw_data->nstill > 10 * raw_data->sstill)
+      if (raw_data->nstill > 30 * raw_data->sstill)
         return EFBIG;
       else if (raw_data->nstill >= raw_data->sstill) {
         raw_data->still(1, raw_data->still.cols()-1) =
@@ -180,10 +180,10 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
       raw_data->nstill = 0;
       if (raw_data->still.cols() > 0) {
         if (raw_data->samples - raw_data->still(1, raw_data->still.cols()-1) >
-            10 * raw_data->sstill)
+            30 * raw_data->sstill)
           return EFBIG;
       } else {
-        if (raw_data->samples > 10 * raw_data->sstill)
+        if (raw_data->samples > 30 * raw_data->sstill)
           return EFBIG;
       }
     }
