@@ -34,6 +34,36 @@
 #include "rotorcraft_c_types.h"
 #include "codels.h"
 
+/* supported devices */
+static const struct {
+  const char *match;		/* match string */
+  double rev;			/* minimum revision */
+  double gres, ares, mres;	/* imu resolutions */
+} rc_devices[] = {
+  [RC_MKBL] = {
+    .match = "%*cmkbl%lf", .rev = 1.8,
+    .gres = 1/1000., .ares = 1/1000., .mres = 1e-8
+  },
+
+  [RC_MKFL] = {
+    .match = "mkfl%lf", .rev = 1.8,
+    .gres = 1/1000., .ares = 1/1000., .mres = 1e-8
+  },
+
+  [RC_FLYMU] = {
+    .match = "flymu%lf", .rev = 1.8,
+    .gres = 1/1000., .ares = 1/1000., .mres = 1e-8
+  },
+
+  [RC_CHIMERA] = {
+    .match = "chimera%lf", .rev = 1.1,
+    .gres = 1000. * M_PI/180 / 32768,
+    .ares = 8 * 9.81 / 32768,
+    .mres = 1e-8
+  },
+};
+
+
 static void	mk_get_ts(uint8_t seq, struct timeval atv, double rate,
                         rotorcraft_ids_sensor_time_s_ts_s *timings,
                         or_time_ts *ts, double *lprate);
@@ -169,15 +199,18 @@ mk_comm_recv(rotorcraft_conn_s **conn,
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[0] = v16/1000. + imu_calibration->abias[0];
+          v[0] = v16 * rc_devices[(*conn)->device].ares
+                 + imu_calibration->abias[0];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[1] = v16/1000. + imu_calibration->abias[1];
+          v[1] = v16 * rc_devices[(*conn)->device].ares
+                 + imu_calibration->abias[1];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[2] = v16/1000. + imu_calibration->abias[2];
+          v[2] = v16 * rc_devices[(*conn)->device].ares
+                 + imu_calibration->abias[2];
 
           vc =
             imu_calibration->ascale[0] * v[0] +
@@ -212,15 +245,18 @@ mk_comm_recv(rotorcraft_conn_s **conn,
           /* gyroscope */
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[0] = v16/1000. + imu_calibration->gbias[0];
+          v[0] = v16 * rc_devices[(*conn)->device].gres
+                 + imu_calibration->gbias[0];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[1] = v16/1000. + imu_calibration->gbias[1];
+          v[1] = v16 * rc_devices[(*conn)->device].gres
+                 + imu_calibration->gbias[1];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[2] = v16/1000. + imu_calibration->gbias[2];
+          v[2] = v16 * rc_devices[(*conn)->device].gres
+                 + imu_calibration->gbias[2];
 
           vc =
             imu_calibration->gscale[0] * v[0] +
@@ -272,15 +308,18 @@ mk_comm_recv(rotorcraft_conn_s **conn,
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[0] = v16/1e8 + imu_calibration->mbias[0];
+          v[0] = v16 * rc_devices[(*conn)->device].mres
+                 + imu_calibration->mbias[0];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[1] = v16/1e8 + imu_calibration->mbias[1];
+          v[1] = v16 * rc_devices[(*conn)->device].mres
+                 + imu_calibration->mbias[1];
 
           v16 = ((int16_t)(*msg++) << 8);
           v16 |= ((uint16_t)(*msg++) << 0);
-          v[2] = v16/1e8 + imu_calibration->mbias[2];
+          v[2] = v16 * rc_devices[(*conn)->device].mres
+                 + imu_calibration->mbias[2];
 
           mdata->att._value.qw = nan("");
 
@@ -432,16 +471,6 @@ mk_connect_start(const char serial[64], uint32_t baud,
                  rotorcraft_ids_sensor_time_s *sensor_time,
                  const genom_context self)
 {
-  /* supported devices */
-  static const struct {
-    enum rc_device dev; const char *match; double rev;
-  } rc_devices[] = {
-    { .dev = RC_MKBL,		.match = "%*cmkbl%lf",	1.8 },
-    { .dev = RC_MKFL,		.match = "mkfl%lf",	1.8 },
-    { .dev = RC_FLYMU,		.match = "flymu%lf",	1.8 },
-    { .dev = RC_CHIMERA,	.match = "chimera%lf",	1.0 }
-  };
-
   double rev;
   size_t c;
   int s;
@@ -486,6 +515,8 @@ mk_connect_start(const char serial[64], uint32_t baud,
   (*conn)->chan.msg[(*conn)->chan.len] = 0;
   (*conn)->device = RC_NONE;
   for (c = 0; c < sizeof(rc_devices)/sizeof(rc_devices[0]); c++) {
+    if (!rc_devices[c].match) continue;
+
     if (sscanf((char *)&(*conn)->chan.msg[1], rc_devices[c].match, &rev) != 1)
       continue;
     if (rev < rc_devices[c].rev) {
@@ -497,7 +528,7 @@ mk_connect_start(const char serial[64], uint32_t baud,
       return rotorcraft_e_baddev(&d, self);
     }
 
-    (*conn)->device = rc_devices[c].dev;
+    (*conn)->device = c;
     break;
   }
   if ((*conn)->device == RC_NONE) {
