@@ -488,8 +488,8 @@ mk_calibration_mag(double mscale[9], double mbias[3])
 
   theta <<
     0., 0., 0.,
-    1., 1., 1.,
-    0., 0., 0.;
+    2*norm / (max-min).array(),
+    - (max + min) / 2;
 
   s = lm.minimize(theta);
   if (s <= 0) return EINVAL;
