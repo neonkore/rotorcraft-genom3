@@ -526,51 +526,81 @@ fail:
 
 /* --- Activity set_zero ------------------------------------------------ */
 
-/** Codel mk_set_zero_start of activity set_zero.
+/** Codel mk_avgsensors_start of activity set_zero.
  *
  * Triggered by rotorcraft_start.
  * Yields to rotorcraft_collect.
  * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_set_zero_start(double accum[3], double gycum[3], uint32_t *n,
-                  const genom_context self)
+mk_avgsensors_start(rotorcraft_accum accum[3],
+                    const genom_context self)
 {
   (void)self;
 
-  gycum[0] = gycum[1] = gycum[2] = 0.;
-  accum[0] = accum[1] = accum[2] = 0.;
-  *n = 0;
+  accum[0] = accum[1] = accum[2] = (rotorcraft_accum){
+    .data = {0.},
+    .count = 0,
+    .last = {0}
+  };
+
   return rotorcraft_collect;
 }
 
-/** Codel mk_set_zero_collect of activity set_zero.
+/** Codel mk_avgsensors_collect of activity set_zero.
  *
  * Triggered by rotorcraft_collect.
  * Yields to rotorcraft_pause_collect, rotorcraft_main.
  * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_set_zero_collect(const rotorcraft_imu *imu, double accum[3],
-                    double gycum[3], uint32_t *n,
-                    const genom_context self)
+mk_avgsensors_collect(const rotorcraft_imu *imu,
+                      const rotorcraft_mag *mag,
+                      rotorcraft_accum accum[3], double *duration,
+                      const genom_context self)
 {
   or_pose_estimator_state *imu_data = imu->data(self);
+  or_pose_estimator_state *mag_data = mag->data(self);
 
-  if (!imu_data->avel._present || !imu_data->acc._present) {
+  if (imu_data->avel._present &&
+      (imu_data->ts.sec != accum[0].last.sec ||
+       imu_data->ts.nsec != accum[0].last.sec)) {
+    accum[0].data[0] += imu_data->avel._value.wx;
+    accum[0].data[1] += imu_data->avel._value.wy;
+    accum[0].data[2] += imu_data->avel._value.wz;
+    accum[0].count++;
+    accum[0].last = imu_data->ts;
+  }
+
+  if (imu_data->acc._present &&
+      (imu_data->ts.sec != accum[1].last.sec ||
+       imu_data->ts.nsec != accum[1].last.sec)) {
+    accum[1].data[0] += imu_data->acc._value.ax;
+    accum[1].data[1] += imu_data->acc._value.ay;
+    accum[1].data[2] += imu_data->acc._value.az;
+    accum[1].count++;
+    accum[1].last = imu_data->ts;
+  }
+
+  if (mag_data->att._present &&
+      (mag_data->ts.sec != accum[2].last.sec ||
+       mag_data->ts.nsec != accum[2].last.sec)) {
+    accum[2].data[0] += mag_data->att._value.qx;
+    accum[2].data[1] += mag_data->att._value.qy;
+    accum[2].data[2] += mag_data->att._value.qz;
+    accum[2].count++;
+    accum[2].last = imu_data->ts;
+  }
+
+  *duration -= rotorcraft_control_period_ms / 1e3;
+  if (*duration > 0.) return rotorcraft_pause_collect;
+
+  if (accum[0].count == 0 && accum[1].count == 0 && accum[2].count == 0) {
     errno = EIO;
     return mk_e_sys_error("set_zero", self);
   }
 
-  gycum[0] = (*n * gycum[0] - imu_data->avel._value.wx) / (1 + *n);
-  gycum[1] = (*n * gycum[1] - imu_data->avel._value.wy) / (1 + *n);
-  gycum[2] = (*n * gycum[2] - imu_data->avel._value.wz) / (1 + *n);
-
-  accum[0] = (*n * accum[0] + imu_data->acc._value.ax) / (1 + *n);
-  accum[1] = (*n * accum[1] + imu_data->acc._value.ay) / (1 + *n);
-  accum[2] = (*n * accum[2] + imu_data->acc._value.az) / (1 + *n);
-
-  return ((*n)++ < 10000.) ? rotorcraft_pause_collect : rotorcraft_main;
+  return rotorcraft_main;
 }
 
 /** Codel mk_set_zero of activity set_zero.
@@ -580,30 +610,82 @@ mk_set_zero_collect(const rotorcraft_imu *imu, double accum[3],
  * Throws rotorcraft_e_sys.
  */
 genom_event
-mk_set_zero(double accum[3], double gycum[3],
+mk_set_zero(rotorcraft_accum accum[3],
             rotorcraft_ids_imu_calibration_s *imu_calibration,
             bool *imu_calibration_updated, const genom_context self)
 {
   double roll, pitch;
   double cr, cp, sr, sp;
   double r[9];
+
+  /* gyro bias */
+  mk_set_zero_velocity(accum, imu_calibration, imu_calibration_updated, self);
+
+  /* accelerometer rotation */
+  if (accum[1].count) {
+    roll = atan2(accum[1].data[1], accum[1].data[2]);
+    cr = cos(roll);  sr = sin(roll);
+    pitch = atan2(-accum[1].data[0], hypot(accum[1].data[1], accum[1].data[2]));
+    cp = cos(pitch); sp = sin(pitch);
+
+    r[0] = cp;   r[1] = sr * sp;  r[2] = cr * sp;
+    r[3] = 0.;   r[4] = cr;       r[5] = -sr;
+    r[6] = -sp;  r[7] = cp * sr;  r[8] = cr * cp;
+
+    mk_calibration_rotate(r, imu_calibration->gscale);
+    mk_calibration_rotate(r, imu_calibration->ascale);
+    *imu_calibration_updated = true;
+  }
+
+  return rotorcraft_ether;
+}
+
+
+/* --- Activity set_zero_velocity --------------------------------------- */
+
+/** Codel mk_avgsensors_start of activity set_zero_velocity.
+ *
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_collect.
+ * Throws rotorcraft_e_sys.
+ */
+/* already defined in service set_zero */
+
+
+/** Codel mk_avgsensors_collect of activity set_zero_velocity.
+ *
+ * Triggered by rotorcraft_collect.
+ * Yields to rotorcraft_pause_collect, rotorcraft_main.
+ * Throws rotorcraft_e_sys.
+ */
+/* already defined in service set_zero */
+
+
+/** Codel mk_set_zero_velocity of activity set_zero_velocity.
+ *
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys.
+ */
+genom_event
+mk_set_zero_velocity(rotorcraft_accum accum[3],
+                     rotorcraft_ids_imu_calibration_s *imu_calibration,
+                     bool *imu_calibration_updated,
+                     const genom_context self)
+{
   (void)self;
 
-  roll = atan2(accum[1], accum[2]);
-  cr = cos(roll);  sr = sin(roll);
-  pitch = atan2(-accum[0], hypot(accum[1], accum[2]));
-  cp = cos(pitch); sp = sin(pitch);
+  /* gyro bias */
+  if (accum[0].count) {
+    /* multiply by -1 to substract offset to the calibration */
+    accum[0].data[0] /= - accum[0].count;
+    accum[0].data[1] /= - accum[0].count;
+    accum[0].data[2] /= - accum[0].count;
+    mk_calibration_bias(accum[0].data,
+                        imu_calibration->gscale, imu_calibration->gbias);
+    *imu_calibration_updated = true;
+  }
 
-  r[0] = cp;   r[1] = sr * sp;  r[2] = cr * sp;
-  r[3] = 0.;   r[4] = cr;       r[5] = -sr;
-  r[6] = -sp;  r[7] = cp * sr;  r[8] = cr * cp;
-
-  mk_calibration_bias(gycum, imu_calibration->gscale, imu_calibration->gbias);
-  mk_calibration_rotate(r, imu_calibration->gscale);
-  mk_calibration_rotate(r, imu_calibration->ascale);
-  /* mk_calibration_rotate(r, imu_calibration->mscale); */
-
-  *imu_calibration_updated = true;
   return rotorcraft_ether;
 }
 
@@ -897,6 +979,70 @@ mk_stop(const rotorcraft_conn_s *conn,
     if (state[i].disabled) continue;
     if (state[i].spinning) return rotorcraft_pause_start;
   }
+
+  return rotorcraft_ether;
+}
+
+
+/* --- Activity get_sensor_average -------------------------------------- */
+
+/** Codel mk_avgsensors_start of activity get_sensor_average.
+ *
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_collect.
+ * Throws rotorcraft_e_sys.
+ */
+/* already defined in service set_zero */
+
+
+/** Codel mk_avgsensors_collect of activity get_sensor_average.
+ *
+ * Triggered by rotorcraft_collect.
+ * Yields to rotorcraft_pause_collect, rotorcraft_main.
+ * Throws rotorcraft_e_sys.
+ */
+/* already defined in service set_zero */
+
+
+/** Codel mk_get_sensor_average of activity get_sensor_average.
+ *
+ * Triggered by rotorcraft_main.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys.
+ */
+genom_event
+mk_get_sensor_average(rotorcraft_accum accum[3], or_t3d_avel *gyr,
+                      or_t3d_acc *acc, or_t3d_pos *mag,
+                      const genom_context self)
+{
+  (void)self;
+
+  if (accum[0].count) {
+    *gyr = (or_t3d_avel) {
+      .wx = accum[0].data[0] /= accum[0].count,
+      .wy = accum[0].data[1] /= accum[0].count,
+      .wz = accum[0].data[2] /= accum[0].count
+    };
+  } else
+    *gyr = (or_t3d_avel) { nan(""), nan(""), nan("") };
+
+  if (accum[1].count) {
+    *acc = (or_t3d_acc) {
+      .ax = accum[1].data[0] /= accum[1].count,
+      .ay = accum[1].data[1] /= accum[1].count,
+      .az = accum[1].data[2] /= accum[1].count
+    };
+  } else
+    *acc = (or_t3d_acc) { nan(""), nan(""), nan("") };
+
+  if (accum[2].count) {
+    *mag = (or_t3d_pos) {
+      .x = accum[2].data[0] /= accum[2].count,
+      .y = accum[2].data[1] /= accum[2].count,
+      .z = accum[2].data[2] /= accum[2].count
+    };
+  } else
+    *mag = (or_t3d_pos) { nan(""), nan(""), nan("") };
 
   return rotorcraft_ether;
 }

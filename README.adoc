@@ -647,6 +647,10 @@ The motion should cover the full SO(3) space for best results.
 
 [role="small", width="50%", float="right", cols="1"]
 |===
+a|.Inputs
+[disc]
+ * `double` `duration` (default `"10"`) Averaging time (s)
+
 a|.Throws
 [disc]
  * `exception ::rotorcraft::e_sys`
@@ -658,8 +662,10 @@ a|.Context
   * In task `<<main>>`
   (frequency 1000.0 _Hz_)
   * Updates port `<<imu>>`
+  * Updates port `<<mag>>`
   * Interrupts `<<calibrate_imu>>`
   * Interrupts `<<set_zero>>`
+  * Interrupts `<<set_zero_velocity>>`
 |===
 
 Align IMU frame with the gravity vector and reset gyroscopes bias.
@@ -679,6 +685,45 @@ can be retrieved with <<get_imu_calibration>>.
 This service should be called quite often, as the gyroscopes bias
 are much dependent on the temperature, so it is important to
 estimate them well.
+
+'''
+
+[[set_zero_velocity]]
+=== set_zero_velocity (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `duration` (default `"10"`) Averaging time (s)
+
+a|.Throws
+[disc]
+ * `exception ::rotorcraft::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Updates port `<<imu>>`
+  * Updates port `<<mag>>`
+  * Interrupts `<<calibrate_imu>>`
+  * Interrupts `<<set_zero>>`
+  * Interrupts `<<set_zero_velocity>>`
+|===
+
+Reset gyroscopes bias.
+
+This service updates the `3D` bias vector for gyroscopes so that the
+the gyroscopes return a 0 angular velocity on each axis.
+
+While running this service, the platform should be perfectly
+standstill. This is a subset of what <<set_zero>> does.
+
+After completion, the current calibration results are updated and
+can be retrieved with <<get_imu_calibration>>.
 
 '''
 
@@ -856,6 +901,59 @@ a|.Outputs
 |===
 
 Show missed log entries
+
+'''
+
+[[get_sensor_average]]
+=== get_sensor_average (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `double` `duration` (default `"10"`) Averaging time (s)
+
+a|.Outputs
+[disc]
+ * `struct ::or::t3d::avel` `gyr`
+ ** `double` `wx`
+ ** `double` `wy`
+ ** `double` `wz`
+
+ * `struct ::or::t3d::acc` `acc`
+ ** `double` `ax`
+ ** `double` `ay`
+ ** `double` `az`
+
+ * `struct ::or::t3d::pos` `mag`
+ ** `double` `x`
+ ** `double` `y`
+ ** `double` `z`
+
+a|.Throws
+[disc]
+ * `exception ::rotorcraft::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+a|.Context
+[disc]
+  * In task `<<main>>`
+  (frequency 1000.0 _Hz_)
+  * Updates port `<<imu>>`
+  * Updates port `<<mag>>`
+|===
+
+Reset gyroscopes bias.
+
+This service updates the `3D` bias vector for gyroscopes so that the
+the gyroscopes return a 0 angular velocity on each axis.
+
+While running this service, the platform should be perfectly
+standstill. This is a subset of what <<set_zero>> does.
+
+After completion, the current calibration results are updated and
+can be retrieved with <<get_imu_calibration>>.
 
 '''
 

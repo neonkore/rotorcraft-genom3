@@ -399,7 +399,7 @@ component rotorcraft {
     interrupt calibrate_imu, calibrate_mag, set_zero;
   };
 
-  activity set_zero() {
+  activity set_zero(in double duration = 10.: "Averaging time (s)") {
     doc "Align IMU frame with the gravity vector and reset gyroscopes bias.";
     doc "";
     doc "This service updates the `3×3` scaling matrices and `3D` bias vector";
@@ -420,21 +420,55 @@ component rotorcraft {
 
     task	main;
 
-    local double accum[3], gycum[3];
-    local unsigned long n;
+    local struct accum {
+      double data[3];
+      unsigned long count;
+      or::time::ts last;
+    } accum[3];
 
-    codel<start> mk_set_zero_start(out accum, out gycum, out n)
+    codel<start> mk_avgsensors_start(out accum)
       yield collect;
-    codel<collect> mk_set_zero_collect(in imu, inout accum, inout gycum,
-                                       inout n)
+    codel<collect> mk_avgsensors_collect(in imu, in mag, inout accum,
+                                         inout duration)
       yield pause::collect, main;
-    codel<main> mk_set_zero(inout accum, inout gycum,
+    codel<main> mk_set_zero(inout accum,
                             out imu_calibration, out imu_calibration_updated)
       yield ether;
 
     throw e_sys;
 
-    interrupt calibrate_imu, set_zero;
+    interrupt calibrate_imu, set_zero, set_zero_velocity;
+  };
+
+  activity set_zero_velocity(in double duration = 10.: "Averaging time (s)") {
+    doc "Reset gyroscopes bias.";
+    doc "";
+    doc "This service updates the `3D` bias vector for gyroscopes so that the";
+    doc "the gyroscopes return a 0 angular velocity on each axis.";
+    doc "";
+    doc "While running this service, the platform should be perfectly";
+    doc "standstill. This is a subset of what <<set_zero>> does.";
+    doc "";
+    doc "After completion, the current calibration results are updated and";
+    doc "can be retrieved with <<get_imu_calibration>>.";
+
+    task	main;
+
+    local accum accum[3];
+
+    codel<start> mk_avgsensors_start(out accum)
+      yield collect;
+    codel<collect> mk_avgsensors_collect(in imu, in mag, inout accum,
+                                         inout duration)
+      yield pause::collect, main;
+    codel<main> mk_set_zero_velocity(inout accum,
+                                     out imu_calibration,
+                                     out imu_calibration_updated)
+      yield ether;
+
+    throw e_sys;
+
+    interrupt calibrate_imu, set_zero, set_zero_velocity;
   };
 
 
@@ -536,5 +570,26 @@ component rotorcraft {
     doc		"Show missed log entries";
 
     codel mk_log_info(in log, out miss, out total);
+  };
+
+  activity get_sensor_average(
+    in double duration = 10.: "Averaging time (s)",
+    out or::t3d::avel gyr, out or::t3d::acc acc, out or::t3d::pos mag) {
+    doc "Compute gyroscopes, accelerometers and magnetomers average.";
+
+    task	main;
+
+    local accum accum[3];
+
+    codel<start> mk_avgsensors_start(out accum)
+      yield collect;
+    codel<collect> mk_avgsensors_collect(in imu, port in mag, inout accum,
+                                         inout duration)
+      yield pause::collect, main;
+    codel<main> mk_get_sensor_average(inout accum,
+                                      out gyr, out acc, local out mag)
+      yield ether;
+
+      throw e_sys;
   };
 };
