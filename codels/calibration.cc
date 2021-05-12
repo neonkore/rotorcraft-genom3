@@ -210,16 +210,10 @@ struct mk_calibration_acc_errfunc {
   typedef Eigen::Matrix<Scalar, Eigen::Dynamic, 1> ValueType;
   typedef Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic> JacobianType;
 
-  Eigen::Matrix<Scalar, 3, Eigen::Dynamic> measurements;
-  void measurement(Eigen::Matrix<Scalar, 3, 1> m) {
-    measurements.conservativeResize(Eigen::NoChange, measurements.cols()+1);
-    measurements.col(measurements.cols()-1) << m;
-  }
-
   int operator()(const InputType &theta, ValueType &L) const {
     Eigen::Matrix<Scalar, 3, 3> S;
     Eigen::Matrix<Scalar, 3, 1> b;
-    int32_t i;
+    int32_t i, j, k;
 
     S <<
       theta(3),  theta(0) * theta(4),  theta(1) * theta(5),
@@ -230,31 +224,28 @@ struct mk_calibration_acc_errfunc {
       theta(7),
       theta(8);
 
-    for(i = 0; i < measurements.cols(); i++)
-      L(i) = 9.81*9.81 - (S * (measurements.col(i) + b)).squaredNorm();
+    for(i = k = 0; i < raw_data->still.cols(); i++)
+      for(j = raw_data->still(0, i); j <= raw_data->still(1, i); j++)
+        L(k++) = 9.81*9.81 - (S * (raw_data->acc.col(j) + b)).squaredNorm();
 
     return 0;
   }
 
   int inputs() const { return InputsAtCompileTime; }
-  int values() const { return measurements.cols(); }
+  int values() const {
+    int32_t i, k;
+
+    for(i = k = 0; i < raw_data->still.cols(); i++)
+      k += raw_data->still(1, i) - raw_data->still(0, i) + 1;
+    return k;
+  }
 };
 
 int
 mk_calibration_acc(double ascale[9], double abias[3])
 {
   Eigen::NumericalDiff<mk_calibration_acc_errfunc> errfunc;
-  int32_t i, k;
-
-  /* average accelerometer data over all still periods  */
-  for(i = 0; i < raw_data->still.cols(); i++) {
-    raw_data->sum << 0., 0., 0.;
-    for(k = raw_data->still(0, i); k <= raw_data->still(1, i); k++)
-      raw_data->sum += raw_data->acc.col(k);
-    raw_data->sum /= raw_data->still(1, i) - raw_data->still(0, i) + 1;
-
-    errfunc.measurement(raw_data->sum);
-  }
+  int32_t i;
 
   /* compute optimal parameters */
   Eigen::Matrix<double, Eigen::Dynamic, 1> theta(9);
