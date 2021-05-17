@@ -85,6 +85,10 @@ component rotorcraft {
     } battery;
 
     /* imu calibration & filtering */
+    struct calibration_param_s {
+      double motion_tolerance;
+    } calib_param;
+
     struct imu_calibration_s {
       double gscale[9], gbias[3], gstddev[3];
       double ascale[9], abias[3], astddev[3];
@@ -166,6 +170,24 @@ component rotorcraft {
     validate mk_set_battery_limits(in min, in max);
 
     throw e_range;
+  };
+
+  attribute get_calibration_param(out calib_param = {
+      .motion_tolerance =: "Tolerance factor of the standstill detector"
+    }) {
+    doc "Get IMU calibration parameters. See <<set_calibration_param>>.";
+  };
+  attribute set_calibration_param(in calib_param = {
+      .motion_tolerance = 10: "Tolerance factor of the standstill detector"
+    }) {
+    doc "Set IMU calibration parameters.";
+    doc "";
+    doc "The `motion_tolerance` is a multiplicative factor the controls the";
+    doc "sensitivity of the standstill detector used by <<calibrate_imu>>.";
+    doc "`motion_tolerance` must be greater than 1.0. The closer it is to 1.0,";
+    doc "the more the detector will be sensitive to slight motion, making the";
+    doc "calibration procedure practically cumbersome but hopefully more";
+    doc "precise. A good tradeoff is 10.0, which is the default.";
   };
 
   attribute get_imu_calibration(out imu_calibration = {
@@ -366,7 +388,7 @@ component rotorcraft {
 
     task	main;
 
-    codel<start> mk_calibrate_imu_start(in tstill, in nposes)
+    codel<start> mk_calibrate_imu_start(in calib_param, in tstill, in nposes)
       yield collect;
     codel<collect> mk_calibrate_imu_collect(in imu, in mag)
       yield pause::collect, main;
@@ -395,7 +417,7 @@ component rotorcraft {
 
     task	main;
 
-    codel<start> mk_calibrate_mag_start(in tstill)
+    codel<start> mk_calibrate_mag_start(in calib_param, in tstill)
       yield collect;
     codel<collect> mk_calibrate_imu_collect(in imu, in mag)
       yield pause::collect, main;

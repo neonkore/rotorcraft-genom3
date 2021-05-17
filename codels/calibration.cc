@@ -49,8 +49,9 @@ struct mk_calibration_data {
   int32_t samples;
   or_time_ts ts;
 
-  Eigen::Matrix<double, 3, 1> sum, sumsq;
-  double  accvarth;
+  Eigen::Array<double, 6, Eigen::Dynamic> moq;
+  Eigen::Array<double, 6, 1> sum, sumsq, varth;
+  double tolerance;
 
   Eigen::Array<int32_t, 2, Eigen::Dynamic> still;
   int32_t nstill;
@@ -62,7 +63,8 @@ static mk_calibration_data *raw_data;
 /* --- mk_calibration_init ------------------------------------------------- */
 
 int
-mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps)
+mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps,
+                    double tolerance)
 {
   raw_data = new(mk_calibration_data);
   if (!raw_data) return ENOMEM;
@@ -77,9 +79,10 @@ mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps)
   raw_data->samples = 0;
   raw_data->ts.sec = raw_data->ts.nsec = 0;
 
-  raw_data->sum << 0., 0., 0.;
-  raw_data->sumsq << 0., 0., 0.;
-  raw_data->accvarth = DBL_MAX;
+  raw_data->sum << 0., 0., 0., 0., 0., 0.;
+  raw_data->sumsq << 0., 0., 0., 0., 0., 0.;
+  raw_data->varth << 1., 1., 1., 1., 1., 1.;
+  raw_data->tolerance = tolerance;
 
   raw_data->still.resize(Eigen::NoChange, 0);
   raw_data->nstill = 0;
@@ -94,8 +97,7 @@ int
 mk_calibration_collect(or_pose_estimator_state *imu_data,
                        or_pose_estimator_state *mag_data, int32_t *still)
 {
-  Eigen::Matrix<double, 3, 1> acc, accvar;
-  double m;
+  Eigen::Array<double, 6, 1> samp, var;
 
   *still = -1;
 
@@ -137,30 +139,39 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
     mag_data->att._value.qz;
 
 
-  /* compute accelerometer variance over the last second */
+  /* compute accelerometer and gyroscope variance over the last second */
 
-  acc = raw_data->acc.col(raw_data->samples);
-  raw_data->sum += acc;
-  raw_data->sumsq += acc.cwiseProduct(acc);
+  samp <<
+    raw_data->acc.col(raw_data->samples),
+    raw_data->gyr.col(raw_data->samples);
+  raw_data->sum += samp;
+  raw_data->sumsq += samp * samp;
 
   if (raw_data->samples >= raw_data->sps) {
-    acc = raw_data->acc.col(raw_data->samples - raw_data->sps);
-    raw_data->sum -= acc;
-    raw_data->sumsq -= acc.cwiseProduct(acc);
+    samp <<
+      raw_data->acc.col(raw_data->samples - raw_data->sps),
+      raw_data->gyr.col(raw_data->samples - raw_data->sps);
+    raw_data->sum -= samp;
+    raw_data->sumsq -= samp * samp;
 
-    accvar =
-      (raw_data->sumsq -
-       raw_data->sum.cwiseProduct(raw_data->sum) / raw_data->sps) /
-      raw_data->sps;
+    var = sqrt(
+      (raw_data->sumsq - raw_data->sum * raw_data->sum / raw_data->sps) /
+      raw_data->sps);
+    raw_data->varth = raw_data->varth.min(var);
   }
+
+  if (raw_data->moq.cols() <= raw_data->samples)
+    raw_data->moq.conservativeResize(
+      Eigen::NoChange, raw_data->moq.cols() + raw_data->sps);
+  if (raw_data->samples >= raw_data->sps)
+    raw_data->moq.col(raw_data->samples) = var / raw_data->varth;
+  else
+    raw_data->moq.col(raw_data->samples) = nan("");
 
 
   /* detect still poses */
-  if (raw_data->samples > raw_data->sps) {
-    m = accvar.maxCoeff();
-    if (raw_data->accvarth > m) raw_data->accvarth = m;
-
-    if ((accvar.array() < 100 * raw_data->accvarth).all()) {
+  if (raw_data->samples > 2 * raw_data->sps) {
+    if ((var < raw_data->tolerance * raw_data->varth).all()) {
       if (!raw_data->nstill)
         *still = 0;
 
@@ -521,7 +532,7 @@ void
 mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
                     double maxa[3], double maxw[3], double *avga, double *avgw)
 {
-  Eigen::Matrix<double, 3, 1> s, v;
+  Eigen::Array<double, 3, 1> sum, sumsq, s, v;
   int32_t i, k, n, l;
   double avg;
 
@@ -531,16 +542,16 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
     avg = 0;
     n = 0;
     for(i = 0; i < raw_data->still.cols(); i++) {
-      raw_data->sum << 0., 0., 0.;
-      raw_data->sumsq << 0., 0., 0.;
+      sum << 0., 0., 0.;
+      sumsq << 0., 0., 0.;
       for(k = raw_data->still(0, i); k <= raw_data->still(1, i); k++) {
         v = raw_data->acc.col(k);
-        raw_data->sum += v;
-        raw_data->sumsq += v.cwiseProduct(v);
-        avg += v.norm();
+        sum += v;
+        sumsq += v * v;
+        avg += v.matrix().norm();
       }
       l = raw_data->still(1, i) - raw_data->still(0, i) + 1;
-      s += raw_data->sumsq - raw_data->sum.cwiseProduct(raw_data->sum)/l;
+      s += sumsq - sum * sum / l;
       n += l;
     }
     s /= n;
@@ -552,20 +563,20 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
     if (avga) *avga = avg/n;
   }
   if (stddevw || avgw) {
-    raw_data->sum << 0., 0., 0.;
-    raw_data->sumsq << 0., 0., 0.;
+    sum << 0., 0., 0.;
+    sumsq << 0., 0., 0.;
     avg = 0;
     n = 0;
     for(i = 0; i < raw_data->still.cols(); i++) {
       for(k = raw_data->still(0, i); k <= raw_data->still(1, i); k++) {
         v = raw_data->gyr.col(k);
-        raw_data->sum += v;
-        raw_data->sumsq += v.cwiseProduct(v);
-        avg += v.norm();
+        sum += v;
+        sumsq += v * v;
+        avg += v.matrix().norm();
       }
       n += raw_data->still(1, i) - raw_data->still(0, i) + 1;
     }
-    s = (raw_data->sumsq - raw_data->sum.cwiseProduct(raw_data->sum)/n)/n;
+    s = (sumsq - sum * sum/n)/n;
     if (stddevw) {
       stddevw[0] = std::sqrt(s(0));
       stddevw[1] = std::sqrt(s(1));
@@ -577,15 +588,15 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
     s << 0., 0., 0.;
     n = 0;
     for(i = 0; i < raw_data->still.cols(); i++) {
-      raw_data->sum << 0., 0., 0.;
-      raw_data->sumsq << 0., 0., 0.;
+      sum << 0., 0., 0.;
+      sumsq << 0., 0., 0.;
       for(k = raw_data->still(0, i); k <= raw_data->still(1, i); k++) {
         v = raw_data->mag.col(k);
-        raw_data->sum += v;
-        raw_data->sumsq += v.cwiseProduct(v);
+        sum += v;
+        sumsq += v * v;
       }
       l = raw_data->still(1, i) - raw_data->still(0, i) + 1;
-      s += raw_data->sumsq - raw_data->sum.cwiseProduct(raw_data->sum)/l;
+      s += sumsq - sum * sum / l;
       n += l;
     }
     s /= n;
@@ -596,18 +607,12 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
 
   /* max absolute */
   if (maxa) {
-    s = raw_data->acc.rowwise().maxCoeff();
-    v = raw_data->acc.rowwise().minCoeff();
-    if (s(0) < -v(0)) maxa[0] = -v(0); else maxa[0] = s(0);
-    if (s(1) < -v(1)) maxa[1] = -v(1); else maxa[1] = s(1);
-    if (s(2) < -v(2)) maxa[2] = -v(2); else maxa[2] = s(2);
+    Eigen::Map<Eigen::Array3d> m(maxa);
+    m = raw_data->acc.cwiseAbs().rowwise().maxCoeff();
   }
   if (maxw) {
-    s = raw_data->gyr.rowwise().maxCoeff();
-    v = raw_data->gyr.rowwise().minCoeff();
-    if (s(0) < -v(0)) maxw[0] = -v(0); else maxw[0] = s(0);
-    if (s(1) < -v(1)) maxw[1] = -v(1); else maxw[1] = s(1);
-    if (s(2) < -v(2)) maxw[2] = -v(2); else maxw[2] = s(2);
+    Eigen::Map<Eigen::Array3d> m(maxw);
+    m = raw_data->gyr.cwiseAbs().rowwise().maxCoeff();
   }
 
   if (raw_data) delete raw_data;
@@ -625,7 +630,8 @@ mk_calibration_log(const char *path)
 
   if (!f) { warn("%s", path); return; }
   fprintf(f, "still  "
-          "imu_wx imu_wy imu_wz  imu_ax imu_ay imu_az  mag_x mag_y mag_z\n");
+          "imu_ax imu_ay imu_az  imu_wx imu_wy imu_wz  mag_x mag_y mag_z  "
+          "moq_ax moq_ay moq_az  moq_wx moq_wy moq_wz\n");
 
   still = 0;
   for(i = j = 0; i < raw_data->samples; i++) {
@@ -641,11 +647,13 @@ mk_calibration_log(const char *path)
       }
     }
 
-    fprintf(f, "%d  %g %g %g  %g %g %g  %g %g %g\n",
+    fprintf(f, "%d  %g %g %g  %g %g %g  %g %g %g  %g %g %g  %g %g %g\n",
             still,
-            raw_data->gyr(0, i), raw_data->gyr(1, i), raw_data->gyr(2, i),
             raw_data->acc(0, i), raw_data->acc(1, i), raw_data->acc(2, i),
-            raw_data->mag(0, i), raw_data->mag(1, i), raw_data->mag(2, i));
+            raw_data->gyr(0, i), raw_data->gyr(1, i), raw_data->gyr(2, i),
+            raw_data->mag(0, i), raw_data->mag(1, i), raw_data->mag(2, i),
+            raw_data->moq(0, i), raw_data->moq(1, i), raw_data->moq(2, i),
+            raw_data->moq(3, i), raw_data->moq(4, i), raw_data->moq(5, i));
   }
 
   fclose(f);

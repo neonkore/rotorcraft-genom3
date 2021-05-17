@@ -307,6 +307,45 @@ This controls the computed `energy left` percentage in the port <<rotor_measure>
 
 '''
 
+[[get_calibration_param]]
+=== get_calibration_param (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Outputs
+[disc]
+ * `struct ::rotorcraft::ids::calibration_param_s` `calib_param`
+ ** `double` `motion_tolerance` Tolerance factor of the standstill detector
+
+|===
+
+Get IMU calibration parameters. See <<set_calibration_param>>.
+
+'''
+
+[[set_calibration_param]]
+=== set_calibration_param (attribute)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `struct ::rotorcraft::ids::calibration_param_s` `calib_param`
+ ** `double` `motion_tolerance` (default `"10"`) Tolerance factor of the standstill detector
+
+|===
+
+Set IMU calibration parameters.
+
+The `motion_tolerance` is a multiplicative factor the controls the
+sensitivity of the standstill detector used by <<calibrate_imu>>.
+`motion_tolerance` must be greater than 1.0. The closer it is to 1.0,
+the more the detector will be sensitive to slight motion, making the
+calibration procedure practically cumbersome but hopefully more
+precise. A good tradeoff is 10.0, which is the default.
+
+'''
+
 [[get_imu_calibration]]
 === get_imu_calibration (attribute)
 

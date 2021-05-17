@@ -109,7 +109,8 @@ int	mk_send_msg(const struct mk_channel_s *chan, const char *fmt, ...);
 extern "C" {
 #endif
 
-  int	mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps);
+  int	mk_calibration_init(uint32_t sstill, uint32_t nposes, uint32_t sps,
+                double tolerance);
   int	mk_calibration_collect(or_pose_estimator_state *imu_data,
                                or_pose_estimator_state *mag_data,
                                int32_t *still);

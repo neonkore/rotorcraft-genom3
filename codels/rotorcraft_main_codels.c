@@ -60,6 +60,9 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
   ids->battery.max = 16.8;
   ids->battery.level = 0.;
 
+  ids->calib_param = (rotorcraft_ids_calibration_param_s){
+    .motion_tolerance = 10.
+  };
   ids->imu_calibration = (rotorcraft_ids_imu_calibration_s){
     .gscale = {
       1., 0., 0.,
@@ -364,14 +367,16 @@ mk_main_stop(rotorcraft_log_s **log, const genom_context self)
  * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_imu_start(double tstill, uint16_t nposes,
+mk_calibrate_imu_start(const rotorcraft_ids_calibration_param_s *calib_param,
+                       double tstill, uint16_t nposes,
                        const genom_context self)
 {
   uint32_t sps;
   int s;
 
   sps = 1000/rotorcraft_control_period_ms;
-  s = mk_calibration_init(tstill * sps, nposes, sps);
+  s = mk_calibration_init(tstill * sps, nposes, sps,
+                          calib_param->motion_tolerance);
   if (s) {
     errno = s;
     return mk_e_sys_error("calibration", self);
@@ -463,7 +468,7 @@ mk_calibrate_imu_main(const char path[64],
   warnx("calibration max angular velocity: "
         "x %.2f⁰/s, y %.2f⁰/s, z %.2f⁰/s",
         maxw[0] * 180./M_PI, maxw[1] * 180./M_PI, maxw[2] * 180./M_PI);
-  warnx("calibration avg angular velocity: %gm/s²", avgw);
+  warnx("calibration avg angular velocity: %gm/s", avgw);
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;
@@ -484,9 +489,10 @@ fail:
  * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_mag_start(double tstill, const genom_context self)
+mk_calibrate_mag_start(const rotorcraft_ids_calibration_param_s *calib_param,
+                       double tstill, const genom_context self)
 {
-  return mk_calibrate_imu_start(tstill, 2, self);
+  return mk_calibrate_imu_start(calib_param, tstill, 2, self);
 }
 
 /** Codel mk_calibrate_imu_collect of activity calibrate_mag.
