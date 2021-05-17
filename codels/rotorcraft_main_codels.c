@@ -408,7 +408,7 @@ mk_calibrate_imu_collect(const rotorcraft_imu *imu,
 
     default:
       warnx("calibration aborted");
-      mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
+      mk_calibration_fini(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       errno = s;
       return mk_e_sys_error("calibration", self);
   }
@@ -424,11 +424,12 @@ mk_calibrate_imu_collect(const rotorcraft_imu *imu,
  * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
+mk_calibrate_imu_main(const char path[64],
+                      rotorcraft_ids_imu_calibration_s *imu_calibration,
                       bool *imu_calibration_updated,
                       const genom_context self)
 {
-  double maxa[3], maxw[3];
+  double maxa[3], maxw[3], avga, avgw;
   int s;
 
   s = mk_calibration_acc(imu_calibration->ascale, imu_calibration->abias);
@@ -449,22 +450,26 @@ mk_calibrate_imu_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
     goto fail;
   }
 
+  if (*path) mk_calibration_log(path);
+
   mk_calibration_fini(
     imu_calibration->astddev,
     imu_calibration->gstddev,
     imu_calibration->mstddev,
-    maxa, maxw);
+    maxa, maxw, &avga, &avgw);
   warnx("calibration max acceleration: "
         "x %.2fm/s², y %.2fm/s², z %.2fm/s²", maxa[0], maxa[1], maxa[2]);
+  warnx("calibration avg acceleration: %gm/s²", avga);
   warnx("calibration max angular velocity: "
         "x %.2f⁰/s, y %.2f⁰/s, z %.2f⁰/s",
         maxw[0] * 180./M_PI, maxw[1] * 180./M_PI, maxw[2] * 180./M_PI);
+  warnx("calibration avg angular velocity: %gm/s²", avgw);
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;
 
 fail:
-  mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
+  mk_calibration_fini(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   errno = s;
   return mk_e_sys_error("calibration", self);
 }
@@ -500,7 +505,8 @@ mk_calibrate_mag_start(double tstill, const genom_context self)
  * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_mag_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
+mk_calibrate_mag_main(const char path[64],
+                      rotorcraft_ids_imu_calibration_s *imu_calibration,
                       bool *imu_calibration_updated,
                       const genom_context self)
 {
@@ -512,13 +518,16 @@ mk_calibrate_mag_main(rotorcraft_ids_imu_calibration_s *imu_calibration,
     goto fail;
   }
 
-  mk_calibration_fini(NULL, NULL, imu_calibration->mstddev, NULL, NULL);
+  if (*path) mk_calibration_log(path);
+
+  mk_calibration_fini(
+    NULL, NULL, imu_calibration->mstddev, NULL, NULL, NULL, NULL);
 
   *imu_calibration_updated = true;
   return rotorcraft_ether;
 
 fail:
-  mk_calibration_fini(NULL, NULL, NULL, NULL, NULL);
+  mk_calibration_fini(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   errno = s;
   return mk_e_sys_error("calibration", self);
 }

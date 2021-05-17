@@ -16,7 +16,10 @@
  */
 #include "acrotorcraft.h"
 
+#include <err.h>
+
 #include <cfloat>
+#include <cstdio>
 #include <iostream>
 
 #include <Eigen/Core>
@@ -473,6 +476,7 @@ mk_calibration_mag(double mscale[9], double mbias[3])
     Eigen::NumericalDiff<mk_calibration_mag_errfunc> > lm(errfunc);
   Eigen::Matrix<double, 3, 3> S1;
   Eigen::Matrix<double, 3, 1> b1;
+  int32_t i;
   int s;
 
   errfunc.norm2 = norm * norm;
@@ -495,6 +499,10 @@ mk_calibration_mag(double mscale[9], double mbias[3])
       theta(7),
       theta(8);
 
+  /* apply correction to raw data */
+  for(i = 0; i < raw_data->samples; i++)
+    raw_data->mag.col(i) = S1 * ( raw_data->mag.col(i) + b1 );
+
   /* update old scale S0 and bias b0 with new S1 and b1 so that we now read
    * S1.( S0.(a + b0) + b1 ), i.e. S = S1.S0 and b = b0 + S0^-1.b1 */
   Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::RowMajor> > S(mscale);
@@ -511,14 +519,16 @@ mk_calibration_mag(double mscale[9], double mbias[3])
 
 void
 mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
-                    double maxa[3], double maxw[3])
+                    double maxa[3], double maxw[3], double *avga, double *avgw)
 {
   Eigen::Matrix<double, 3, 1> s, v;
   int32_t i, k, n, l;
+  double avg;
 
   /* stddev over all still intervals */
-  if (stddeva) {
+  if (stddeva || avga) {
     s << 0., 0., 0.;
+    avg = 0;
     n = 0;
     for(i = 0; i < raw_data->still.cols(); i++) {
       raw_data->sum << 0., 0., 0.;
@@ -527,32 +537,41 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
         v = raw_data->acc.col(k);
         raw_data->sum += v;
         raw_data->sumsq += v.cwiseProduct(v);
+        avg += v.norm();
       }
       l = raw_data->still(1, i) - raw_data->still(0, i) + 1;
       s += raw_data->sumsq - raw_data->sum.cwiseProduct(raw_data->sum)/l;
       n += l;
     }
     s /= n;
-    stddeva[0] = std::sqrt(s(0));
-    stddeva[1] = std::sqrt(s(1));
-    stddeva[2] = std::sqrt(s(2));
+    if (stddeva) {
+      stddeva[0] = std::sqrt(s(0));
+      stddeva[1] = std::sqrt(s(1));
+      stddeva[2] = std::sqrt(s(2));
+    }
+    if (avga) *avga = avg/n;
   }
-  if (stddevw) {
+  if (stddevw || avgw) {
     raw_data->sum << 0., 0., 0.;
     raw_data->sumsq << 0., 0., 0.;
+    avg = 0;
     n = 0;
     for(i = 0; i < raw_data->still.cols(); i++) {
       for(k = raw_data->still(0, i); k <= raw_data->still(1, i); k++) {
         v = raw_data->gyr.col(k);
         raw_data->sum += v;
         raw_data->sumsq += v.cwiseProduct(v);
+        avg += v.norm();
       }
       n += raw_data->still(1, i) - raw_data->still(0, i) + 1;
     }
     s = (raw_data->sumsq - raw_data->sum.cwiseProduct(raw_data->sum)/n)/n;
-    stddevw[0] = std::sqrt(s(0));
-    stddevw[1] = std::sqrt(s(1));
-    stddevw[2] = std::sqrt(s(2));
+    if (stddevw) {
+      stddevw[0] = std::sqrt(s(0));
+      stddevw[1] = std::sqrt(s(1));
+      stddevw[2] = std::sqrt(s(2));
+    }
+    if (avgw) *avgw = avg/n;
   }
   if (stddevm) {
     s << 0., 0., 0.;
@@ -592,6 +611,44 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
   }
 
   if (raw_data) delete raw_data;
+}
+
+
+/* --- mk_calibration_log -------------------------------------------------- */
+
+void
+mk_calibration_log(const char *path)
+{
+  FILE *f = fopen(path, "w");
+  int i, j;
+  int still;
+
+  if (!f) { warn("%s", path); return; }
+  fprintf(f, "still  "
+          "imu_wx imu_wy imu_wz  imu_ax imu_ay imu_az  mag_x mag_y mag_z\n");
+
+  still = 0;
+  for(i = j = 0; i < raw_data->samples; i++) {
+    /* check if current sample is within a still interval */
+    if (j < raw_data->still.cols()) {
+      if (i < raw_data->still(0, j))
+        still = 0;
+      else if (i <= raw_data->still(1, j))
+        still = 1;
+      else {
+        still = 0;
+        j++;
+      }
+    }
+
+    fprintf(f, "%d  %g %g %g  %g %g %g  %g %g %g\n",
+            still,
+            raw_data->gyr(0, i), raw_data->gyr(1, i), raw_data->gyr(2, i),
+            raw_data->acc(0, i), raw_data->acc(1, i), raw_data->acc(2, i),
+            raw_data->mag(0, i), raw_data->mag(1, i), raw_data->mag(2, i));
+  }
+
+  fclose(f);
 }
 
 

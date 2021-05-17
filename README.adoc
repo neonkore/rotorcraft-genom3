@@ -15,6 +15,7 @@
 //					Anthony Mallet on Fri Feb 13 2015
 //
 
+
 // This file was generated from rotorcraft.gen by the skeleton
 // template. Manual changes should be preserved, although they should
 // rather be added to the "doc" attributes of the genom objects defined in
@@ -534,6 +535,8 @@ a|.Inputs
 
  * `unsigned short` `nposes` (default `"10"`) Number of different standstill positions
 
+ * `string<64>` `path` (default `""`) Log file name (or empty string for no log)
+
 a|.Throws
 [disc]
  * `exception ::rotorcraft::e_sys`
@@ -595,6 +598,13 @@ Make sure to save the results somewhere before stopping the
 component, so that you can load them with
 <<set_imu_calibration>> when you later restart.
 
+If a log file name has been specified in `path`, the file is filled
+with all samples acquired during calibration, corrected with the
+newly estimated calibration parameters. In addition, a boolean
+indicates for each sample if it is considered as part of a standstill
+position or not, so that the quality of the calibration can be
+visually assessed.
+
 CAUTION: This procedure does not set any particular vertical axis
 and the IMU will typically end up calibrated but not aligned with the
 gravity. Use <<set_zero>> (after calibration) to align the IMU.
@@ -609,6 +619,8 @@ gravity. Use <<set_zero>> (after calibration) to align the IMU.
 a|.Inputs
 [disc]
  * `double` `tstill` (default `"2"`) Duration in seconds of standstill positions
+
+ * `string<64>` `path` (default `""`) Log file name (or empty string for no log)
 
 a|.Throws
 [disc]
@@ -944,16 +956,7 @@ a|.Context
   * Updates port `<<mag>>`
 |===
 
-Reset gyroscopes bias.
-
-This service updates the `3D` bias vector for gyroscopes so that the
-the gyroscopes return a 0 angular velocity on each axis.
-
-While running this service, the platform should be perfectly
-standstill. This is a subset of what <<set_zero>> does.
-
-After completion, the current calibration results are updated and
-can be retrieved with <<get_imu_calibration>>.
+Compute gyroscopes, accelerometers and magnetomers average.
 
 '''
 

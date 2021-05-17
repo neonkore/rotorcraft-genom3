@@ -309,7 +309,8 @@ component rotorcraft {
 
   activity calibrate_imu(
     in double tstill = 2 :"Duration in seconds of standstill positions",
-    in unsigned short nposes = 10 :"Number of different standstill positions") {
+    in unsigned short nposes = 10 :"Number of different standstill positions",
+    in string<64> path = "": "Log file name (or empty string for no log)") {
     doc "Calibrate accelerometers, gyroscopes and magnetometer.";
     doc	"";
     doc "This service computes the `3×3` scaling matrices and `3D` bias vector";
@@ -352,6 +353,13 @@ component rotorcraft {
     doc "component, so that you can load them with";
     doc "<<set_imu_calibration>> when you later restart.";
     doc "";
+    doc "If a log file name has been specified in `path`, the file is filled";
+    doc "with all samples acquired during calibration, corrected with the";
+    doc "newly estimated calibration parameters. In addition, a boolean";
+    doc "indicates for each sample if it is considered as part of a standstill";
+    doc "position or not, so that the quality of the calibration can be";
+    doc "visually assessed.";
+    doc "";
     doc "CAUTION: This procedure does not set any particular vertical axis";
     doc "and the IMU will typically end up calibrated but not aligned with the";
     doc "gravity. Use <<set_zero>> (after calibration) to align the IMU.";
@@ -362,7 +370,7 @@ component rotorcraft {
       yield collect;
     codel<collect> mk_calibrate_imu_collect(in imu, in mag)
       yield pause::collect, main;
-    codel<main> mk_calibrate_imu_main(out imu_calibration,
+    codel<main> mk_calibrate_imu_main(in path, out imu_calibration,
                                       out imu_calibration_updated)
       yield ether;
 
@@ -372,7 +380,8 @@ component rotorcraft {
   };
 
   activity calibrate_mag(
-    in double tstill = 2 :"Duration in seconds of standstill positions") {
+    in double tstill = 2 :"Duration in seconds of standstill positions",
+    in string<64> path = "": "Log file name (or empty string for no log)") {
     doc "Calibrate magnetometer.";
     doc	"";
     doc "This service computes the `3×3` scaling matrices and `3D` bias vector";
@@ -390,7 +399,7 @@ component rotorcraft {
       yield collect;
     codel<collect> mk_calibrate_imu_collect(in imu, in mag)
       yield pause::collect, main;
-    codel<main> mk_calibrate_mag_main(out imu_calibration,
+    codel<main> mk_calibrate_mag_main(in path, out imu_calibration,
                                       out imu_calibration_updated)
       yield ether;
 
