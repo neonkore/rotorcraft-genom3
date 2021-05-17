@@ -430,6 +430,7 @@ mk_calibrate_imu_collect(const rotorcraft_imu *imu,
  */
 genom_event
 mk_calibrate_imu_main(const char path[64],
+                      const rotorcraft_ids_sensor_time_s_rate_s *rate,
                       rotorcraft_ids_imu_calibration_s *imu_calibration,
                       bool *imu_calibration_updated,
                       const genom_context self)
@@ -449,10 +450,12 @@ mk_calibrate_imu_main(const char path[64],
     goto fail;
   }
 
-  s = mk_calibration_mag(imu_calibration->mscale, imu_calibration->mbias);
-  if (s) {
-    warnx("magnetometer calibration failed");
-    goto fail;
+  if (rate->mag > 0.) {
+    s = mk_calibration_mag(imu_calibration->mscale, imu_calibration->mbias);
+    if (s) {
+      warnx("magnetometer calibration failed");
+      goto fail;
+    }
   }
 
   if (*path) mk_calibration_log(path);
@@ -460,7 +463,7 @@ mk_calibrate_imu_main(const char path[64],
   mk_calibration_fini(
     imu_calibration->astddev,
     imu_calibration->gstddev,
-    imu_calibration->mstddev,
+    rate->mag > 0. ? imu_calibration->mstddev : NULL,
     maxa, maxw, &avga, &avgw);
   warnx("calibration max acceleration: "
         "x %.2fm/s², y %.2fm/s², z %.2fm/s²", maxa[0], maxa[1], maxa[2]);
@@ -474,6 +477,7 @@ mk_calibrate_imu_main(const char path[64],
   return rotorcraft_ether;
 
 fail:
+  if (*path) mk_calibration_log(path);
   mk_calibration_fini(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
   errno = s;
   return mk_e_sys_error("calibration", self);

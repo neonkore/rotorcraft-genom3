@@ -392,7 +392,8 @@ component rotorcraft {
       yield collect;
     codel<collect> mk_calibrate_imu_collect(in imu, in mag)
       yield pause::collect, main;
-    codel<main> mk_calibrate_imu_main(in path, out imu_calibration,
+    codel<main> mk_calibrate_imu_main(in path, in sensor_time.rate,
+                                      out imu_calibration,
                                       out imu_calibration_updated)
       yield ether;
 
