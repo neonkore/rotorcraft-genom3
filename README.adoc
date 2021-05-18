@@ -23,7 +23,7 @@
 
 = rotorcraft component
 openrobots@laas.fr
-3.1
+3.2
 :toc: left
 
 // fix default asciidoctor stylesheet issue #2407 and add hr clear rule
