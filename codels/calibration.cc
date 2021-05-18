@@ -166,7 +166,7 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
   if (raw_data->samples >= raw_data->sps)
     raw_data->moq.col(raw_data->samples) = var / raw_data->varth;
   else
-    raw_data->moq.col(raw_data->samples) = nan("");
+    raw_data->moq.col(raw_data->samples).setConstant(nan(""));
 
 
   /* detect still poses */
