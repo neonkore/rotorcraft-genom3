@@ -40,6 +40,8 @@
 /* --- local data ---------------------------------------------------------- */
 
 struct mk_calibration_data {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
   int32_t sps, sstill, nposes;
 
   Eigen::Matrix<double, 1, Eigen::Dynamic> t;
