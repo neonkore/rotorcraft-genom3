@@ -911,6 +911,7 @@ mk_servo_main(const rotorcraft_conn_s *conn,
     if (*scale < 0.) {
       warnx("stopped because of low sensor rate");
       mk_stop(conn, rotor_data->state, self);
+      *scale = 0.;
       return rotorcraft_e_rate(self);
     }
   }
