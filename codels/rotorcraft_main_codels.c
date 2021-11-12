@@ -877,7 +877,7 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   or_rotorcraft_input *input_data;
   struct timeval tv;
   genom_event e;
-  int i;
+  size_t i;
 
   if (!conn) return rotorcraft_e_connection(self);
 
@@ -918,7 +918,8 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   /* check rotors status */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_data->state[i].disabled) continue;
-    if (rotor_data->state[i].emerg || !rotor_data->state[i].spinning) {
+    if (rotor_data->state[i].emerg
+        || !(rotor_data->state[i].starting || rotor_data->state[i].spinning)) {
       rotorcraft_e_rotor_failure_detail e;
 
       mk_stop(conn, rotor_data->state, self);
@@ -930,11 +931,18 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   /* linear input scaling for the first servo->ramp seconds or in case of
    * emergency */
   if (*scale < 1.) {
-    size_t i;
-    for(i = 0; i < desired._length; i++)
-      desired._buffer[i] *= *scale;
+    bool rampup = true;
 
-    *scale += 1e-3 * rotorcraft_control_period_ms / servo->ramp;
+    for(i = 0; i < desired._length; i++) {
+      /* prevent ramping up until all motors are fully started */
+      if (!rotor_data->state[i].spinning) rampup = false;
+      desired._buffer[i] *= *scale;
+    }
+
+    if (rampup) {
+      *scale += 1e-3 * rotorcraft_control_period_ms / servo->ramp;
+      if (*scale > 1.) *scale = 1.;
+    }
   }
 
   /* send */
