@@ -390,7 +390,7 @@ component rotorcraft {
 
     codel<start> mk_calibrate_imu_start(in calib_param, in tstill, in nposes)
       yield collect;
-    codel<collect> mk_calibrate_imu_collect(in imu, in mag)
+    codel<collect> mk_calibrate_imu_collect(in path, in imu, in mag)
       yield pause::collect, main;
     codel<main> mk_calibrate_imu_main(in path, in sensor_time.rate,
                                       out imu_calibration,
@@ -420,7 +420,7 @@ component rotorcraft {
 
     codel<start> mk_calibrate_mag_start(in calib_param, in tstill)
       yield collect;
-    codel<collect> mk_calibrate_imu_collect(in imu, in mag)
+    codel<collect> mk_calibrate_imu_collect(in path, in imu, in mag)
       yield pause::collect, main;
     codel<main> mk_calibrate_mag_main(in path, out imu_calibration,
                                       out imu_calibration_updated)

@@ -393,7 +393,8 @@ mk_calibrate_imu_start(const rotorcraft_ids_calibration_param_s *calib_param,
  * Throws rotorcraft_e_sys, rotorcraft_e_connection.
  */
 genom_event
-mk_calibrate_imu_collect(const rotorcraft_imu *imu,
+mk_calibrate_imu_collect(const char path[64],
+                         const rotorcraft_imu *imu,
                          const rotorcraft_mag *mag,
                          const genom_context self)
 {
@@ -413,6 +414,7 @@ mk_calibrate_imu_collect(const rotorcraft_imu *imu,
 
     default:
       warnx("calibration aborted");
+      if (*path) mk_calibration_log(path);
       mk_calibration_fini(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       errno = s;
       return mk_e_sys_error("calibration", self);
