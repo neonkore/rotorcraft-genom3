@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020 LAAS/CNRS
+ * Copyright (c) 2015-2021 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -94,7 +94,8 @@ mk_open_tty(const char *device, uint32_t speed)
   t.c_iflag = IGNBRK;
   t.c_oflag = 0;
   t.c_lflag = 0;
-  t.c_cflag = CS8 | CREAD | CLOCAL;
+  t.c_cflag &= ~(CSIZE | CSTOPB | PARENB | PARODD);
+  t.c_cflag |= CS8 | CREAD | CLOCAL;
   t.c_cc[VMIN] = 0;
   t.c_cc[VTIME] = 0;
 
