@@ -159,7 +159,9 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
     var = sqrt(
       (raw_data->sumsq - raw_data->sum * raw_data->sum / raw_data->sps) /
       raw_data->sps);
-    raw_data->varth = raw_data->varth.min(var);
+    /* global min variance, but do not go below 1e-4 to avoid
+     * numerical unstability. 1e-4 variance is in any case precise enough. */
+    raw_data->varth = raw_data->varth.min(var.max(1e-4));
   }
 
   if (raw_data->moq.cols() <= raw_data->samples)
