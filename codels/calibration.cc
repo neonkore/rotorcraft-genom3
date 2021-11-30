@@ -156,12 +156,14 @@ mk_calibration_collect(or_pose_estimator_state *imu_data,
     raw_data->sum -= samp;
     raw_data->sumsq -= samp * samp;
 
-    var = sqrt(
+    var =
       (raw_data->sumsq - raw_data->sum * raw_data->sum / raw_data->sps) /
-      raw_data->sps);
+      raw_data->sps;
+    var = sqrt(var.max(0.));
     /* global min variance, but do not go below 1e-4 to avoid
      * numerical unstability. 1e-4 variance is in any case precise enough. */
-    raw_data->varth = raw_data->varth.min(var.max(1e-4));
+    raw_data->varth =
+      raw_data->varth.min( (var < 1e-4).select(raw_data->varth, var) );
   }
 
   if (raw_data->moq.cols() <= raw_data->samples)
@@ -559,6 +561,7 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
       n += l;
     }
     s /= n;
+    s = s.max(0.);
     if (stddeva) {
       stddeva[0] = std::sqrt(s(0));
       stddeva[1] = std::sqrt(s(1));
@@ -581,6 +584,7 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
       n += raw_data->still(1, i) - raw_data->still(0, i) + 1;
     }
     s = (sumsq - sum * sum/n)/n;
+    s = s.max(0.);
     if (stddevw) {
       stddevw[0] = std::sqrt(s(0));
       stddevw[1] = std::sqrt(s(1));
@@ -604,6 +608,7 @@ mk_calibration_fini(double stddeva[3], double stddevw[3], double stddevm[3],
       n += l;
     }
     s /= n;
+    s = s.max(0.);
     stddevm[0] = std::sqrt(s(0));
     stddevm[1] = std::sqrt(s(1));
     stddevm[2] = std::sqrt(s(2));
