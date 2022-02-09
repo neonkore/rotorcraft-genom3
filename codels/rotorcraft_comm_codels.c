@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 LAAS/CNRS
+ * Copyright (c) 2015-2022 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -60,6 +60,10 @@ static const struct {
     .gres = 1000. * M_PI/180 / 32768,
     .ares = 8 * 9.81 / 32768,
     .mres = 1e-8
+  },
+
+  [RC_TEENSY] = {
+    .match = "teensy%lf", .rev = 1.0
   },
 };
 

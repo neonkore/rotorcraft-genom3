@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2019,2021 LAAS/CNRS
+ * Copyright (c) 2015-2019,2021-2022 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -75,7 +75,8 @@ enum rc_device {
   RC_MKBL,
   RC_MKFL,
   RC_FLYMU,
-  RC_CHIMERA
+  RC_CHIMERA,
+  RC_TEENSY
 };
 
 struct rotorcraft_conn_s {
