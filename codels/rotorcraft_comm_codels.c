@@ -63,7 +63,7 @@ static const struct {
   },
 
   [RC_TEENSY] = {
-    .match = "teensy%lf", .rev = 1.0
+    .match = "teensy%lf", .rev = 1.1
   },
 };
 

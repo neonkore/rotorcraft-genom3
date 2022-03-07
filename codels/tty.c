@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 LAAS/CNRS
+ * Copyright (c) 2015-2022 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -454,6 +454,10 @@ mk_send_msg(const struct mk_channel_s *chan, const char *fmt, ...)
             mk_encode(x & 0xff, &w);
             break;
           }
+
+          case '%':
+            mk_encode(c, &w);
+            break;
         }
         break;
       }

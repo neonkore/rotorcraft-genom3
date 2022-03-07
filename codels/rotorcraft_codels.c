@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2021 LAAS/CNRS
+ * Copyright (c) 2015-2022 LAAS/CNRS
  * All rights reserved.
  *
  * Redistribution and use  in source  and binary  forms,  with or without
@@ -314,6 +314,41 @@ mk_enable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
 
       mk_send_msg(&conn->chan, "g%1", (uint8_t){motor});
       break;
+    }
+  }
+
+  return genom_ok;
+}
+
+
+/* --- Function set_pid ------------------------------------------------- */
+
+/** Codel mk_set_pid of function set_pid.
+ *
+ * Returns genom_ok.
+ * Throws rotorcraft_e_baddev.
+ */
+genom_event
+mk_set_pid(const rotorcraft_conn_s *conn, uint16_t motor, double Kp,
+           double Ki, double Kd, double f, const genom_context self)
+{
+  static const uint16_t scale = 10000;
+
+  uint16_t sKp = Kp * scale;
+  uint16_t sKi = Ki * scale;
+  uint16_t sKd = Kd * scale;
+  uint16_t sf = f * scale;
+
+  switch (conn->device) {
+    case RC_TEENSY:
+      mk_send_msg(
+        &conn->chan, "%%%1%2%2%2%2", (uint8_t){motor}, sKp, sKi, sKd, sf);
+      break;
+
+    default: {
+      rotorcraft_e_baddev_detail d;
+      snprintf(d.dev, sizeof(d.dev), "unspported hardware");
+      return rotorcraft_e_baddev(&d, self);
     }
   }
 

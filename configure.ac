@@ -1,6 +1,6 @@
 dnl Autoconf file for building rotorcraft codels library.
 dnl
-dnl Copyright (c) 2015-2021 LAAS/CNRS
+dnl Copyright (c) 2015-2022 LAAS/CNRS
 dnl All rights reserved.
 dnl
 dnl Redistribution and use  in source  and binary  forms,  with or without
