@@ -20,7 +20,7 @@
 #include "or/robot/rotorcraft.gen"
 
 component rotorcraft {
-  version		"3.2";
+  version		"3.3";
   email			"openrobots@laas.fr";
   lang			"c";
   require		"genom3 >= 2.99.30";

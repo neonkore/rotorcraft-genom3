@@ -18,7 +18,7 @@ dnl
 
 AC_PREREQ(2.59)
 
-AC_INIT([rotorcraft-genom3],[3.2],[openrobots@laas.fr])
+AC_INIT([rotorcraft-genom3],[3.3],[openrobots@laas.fr])
 AC_CONFIG_MACRO_DIR([autoconf])
 AC_CONFIG_AUX_DIR([autoconf])
 AC_CONFIG_HEADERS([autoconf/acrotorcraft.h])
