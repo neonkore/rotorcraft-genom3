@@ -288,11 +288,58 @@ component rotorcraft {
     in string<64> serial = "/dev/ttyUSB0" :"Serial device",
     in unsigned long baud = 0 :"Baud rate (0 = don't change)") {
 
-    doc		"Connect to the hardware";
+    doc "Connect to the hardware.";
+    doc	"";
+    doc	"`serial` is the device special file to open, at `baud` speed. If one";
+    doc "or more connections are already open, they are all closed first.";
+    doc	"";
+    doc	"See <<pconnect>> to deal with multiple hardware connections.";
+
     task	comm;
 
     codel<start> mk_connect_start(in serial, in baud, inout conn,
                                   inout sensor_time)
+      yield ether;
+
+    throw e_sys, e_baddev;
+    interrupt servo;
+  };
+
+  activity pconnect(
+    in string<64> serial = "/dev/ttyUSB0" :"Serial device",
+    in unsigned long baud = 0 :"Baud rate (0 = don't change)",
+    in boolean imu = TRUE :"Use IMU",
+    in boolean mag = TRUE :"Use magnetometer",
+    in boolean motor = TRUE :"Use motors",
+    in unsigned short offset = 0 :"Motor id offset") {
+
+    doc "Connect to multiple hardware devices.";
+    doc	"";
+    doc	"This works like <<connect>>, except that existing connections are not";
+    doc "closed, so that multiple devices can be connected simultaneously.";
+    doc	"";
+    doc	"`serial` is the device special file to open, at `baud` speed. If a";
+    doc "connection with the same `serial` is already open, it is closed and";
+    doc "replaced by a new one with updated parameters.";
+    doc	"";
+    doc "`imu`, `mag` and `motor` flags indicates whether the corresponding";
+    doc "part should be used (`TRUE`) or ignored (`FALSE`).";
+    doc "";
+    doc "`offset` is a small integer added to the motor ids reported by the";
+    doc "hardware, so that the <<rotor_measure>> or <<rotor_input>> arrays";
+    doc "present an aggregated view of the different devices. For instance,";
+    doc "to connect two devices that both have 4 motors numbered from 1 to 4,";
+    doc "set the first offset to 0 and the second to 4, so that";
+    doc "<<rotor_measure>> (resp. <<rotor_input>>) will present (resp. use)";
+    doc "motor ids from 1 to 8 with the first half directed to the first";
+    doc "device and the second half to the second device.";
+
+    task	comm;
+
+    codel<start> mk_pconnect_start(in serial, in baud,
+                                   local in imu, local in mag,
+                                   in motor, in offset,
+                                   inout conn, inout sensor_time)
       yield ether;
 
     throw e_sys, e_baddev;

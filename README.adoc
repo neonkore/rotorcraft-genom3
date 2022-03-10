@@ -489,7 +489,69 @@ a|.Context
   * Interrupts `<<servo>>`
 |===
 
-Connect to the hardware
+Connect to the hardware.
+
+`serial` is the device special file to open, at `baud` speed. If one
+or more connections are already open, they are all closed first.
+
+See <<pconnect>> to deal with multiple hardware connections.
+
+'''
+
+[[pconnect]]
+=== pconnect (activity)
+
+[role="small", width="50%", float="right", cols="1"]
+|===
+a|.Inputs
+[disc]
+ * `string<64>` `serial` (default `"/dev/ttyUSB0"`) Serial device
+
+ * `unsigned long` `baud` (default `"0"`) Baud rate (0 = don't change)
+
+ * `boolean` `imu` (default `"1"`) Use IMU
+
+ * `boolean` `mag` (default `"1"`) Use magnetometer
+
+ * `boolean` `motor` (default `"1"`) Use motors
+
+ * `unsigned short` `offset` (default `"0"`) Motor id offset
+
+a|.Throws
+[disc]
+ * `exception ::rotorcraft::e_sys`
+ ** `short` `code`
+ ** `string<128>` `what`
+
+ * `exception ::rotorcraft::e_baddev`
+ ** `string<256>` `dev`
+
+a|.Context
+[disc]
+  * In task `<<comm>>`
+  * Interrupts `<<servo>>`
+|===
+
+Connect to multiple hardware devices.
+
+This works like <<connect>>, except that existing connections are not
+closed, so that multiple devices can be connected simultaneously.
+
+`serial` is the device special file to open, at `baud` speed. If a
+connection with the same `serial` is already open, it is closed and
+replaced by a new one with updated parameters.
+
+`imu`, `mag` and `motor` flags indicates whether the corresponding
+part should be used (`TRUE`) or ignored (`FALSE`).
+
+`offset` is a small integer added to the motor ids reported by the
+hardware, so that the <<rotor_measure>> or <<rotor_input>> arrays
+present an aggregated view of the different devices. For instance,
+to connect two devices that both have 4 motors numbered from 1 to 4,
+set the first offset to 0 and the second to 4, so that
+<<rotor_measure>> (resp. <<rotor_input>>) will present (resp. use)
+motor ids from 1 to 8 with the first half directed to the first
+device and the second half to the second device.
 
 '''
 

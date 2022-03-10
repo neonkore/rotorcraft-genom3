@@ -550,6 +550,120 @@ mk_connect_start(const char serial[64], uint32_t baud,
 }
 
 
+/* --- Activity pconnect ------------------------------------------------ */
+
+/** Codel mk_pconnect_start of activity pconnect.
+ *
+ * Triggered by rotorcraft_start.
+ * Yields to rotorcraft_ether.
+ * Throws rotorcraft_e_sys, rotorcraft_e_baddev.
+ */
+genom_event
+mk_pconnect_start(const char serial[64], uint32_t baud, bool imu,
+                  bool mag, bool motor, uint16_t offset,
+                  rotorcraft_conn_s **conn,
+                  rotorcraft_ids_sensor_time_s *sensor_time,
+                  const genom_context self)
+{
+  (void)serial, (void)baud, (void)imu, (void)mag, (void)motor, (void)conn,
+    (void)sensor_time, (void)self;
+
+  rotorcraft_e_baddev_detail d;
+  struct mk_channel_s *chan;
+  uint16_t minid, maxid;
+  genom_event e;
+  uint32_t i;
+
+  chan = malloc(sizeof(*chan));
+  if (!chan) return mk_e_sys_error("malloc", self);
+
+  /* open */
+  e = mk_connect_chan(serial, baud, chan, self);
+  if (e) { free(chan); return e; }
+
+  /* check already open device */
+  for(i = 0; i < (*conn)->n; i++) {
+    if ((*conn)->chan[i].fd < 0) continue;
+    if ((*conn)->chan[i].st_dev != chan->st_dev) continue;
+    if ((*conn)->chan[i].st_ino != chan->st_ino) continue;
+
+    /* disconnect */
+    close((*conn)->chan[i].fd);
+    (*conn)->chan[i].fd = -1;
+  }
+
+  /* check conflicting flags */
+  for(i = 0; i < (*conn)->n; i++) {
+    if ((*conn)->chan[i].fd < 0) continue;
+
+    if ((imu && (*conn)->chan[i].imu) ||
+        (mag && (*conn)->chan[i].mag)) {
+      snprintf(d.dev, sizeof(d.dev),
+               "conflicting device with `%.128s'", (*conn)->chan[i].path);
+      close(chan->fd);
+      free(chan);
+      return rotorcraft_e_baddev(&d, self);
+    }
+  }
+
+  /* allocate motor id range */
+  minid = maxid = 0;
+  if (motor) {
+    minid = offset + 1;
+    maxid = or_rotorcraft_max_rotors;
+    for(i = 0; i < (*conn)->n; i++) {
+      if ((*conn)->chan[i].fd < 0) continue;
+      if (!(*conn)->chan[i].motor) continue;
+      if ((*conn)->chan[i].maxid < minid) continue;
+
+      if ((*conn)->chan[i].minid >= minid && (*conn)->chan[i].minid <= maxid) {
+        maxid = (*conn)->chan[i].minid - 1;
+        continue;
+      }
+
+      maxid = (*conn)->chan[i].maxid;
+      (*conn)->chan[i].maxid = minid - 1;
+    }
+
+    if (maxid < minid || minid < 1 || maxid > or_rotorcraft_max_rotors) {
+      snprintf(d.dev, sizeof(d.dev),
+               "invalid motor range %d-%d", minid, maxid);
+      close(chan->fd);
+      free(chan);
+      return rotorcraft_e_baddev(&d, self);
+    }
+  }
+
+  /* record */
+  chan->imu = imu;
+  chan->mag = mag;
+  chan->motor = motor;
+  chan->minid = minid; chan->maxid = maxid;
+
+  for(i = 0; i < (*conn)->n; i++) {
+    if ((*conn)->chan[i].fd >= 0) continue;
+
+    (*conn)->chan[i] = *chan;
+    free(chan);
+    chan = NULL;
+  }
+  if (chan) {
+    struct mk_channel_s *c =
+      realloc((*conn)->chan, ((*conn)->n + 1) * sizeof(*c));
+    if (!c) return mk_e_sys_error("realloc", self);
+
+    (*conn)->chan = c;
+    (*conn)->chan[(*conn)->n++] = *chan;
+    free(chan);
+  }
+
+  /* configure data streaming */
+  mk_set_sensor_rate(&sensor_time->rate, *conn, NULL, sensor_time, self);
+
+  return rotorcraft_ether;
+}
+
+
 /* --- Activity disconnect ---------------------------------------------- */
 
 /** Codel mk_disconnect_start of activity disconnect.
