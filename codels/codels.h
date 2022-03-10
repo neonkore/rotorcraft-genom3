@@ -59,17 +59,6 @@ struct rotorcraft_log_s {
   "%d " "%d " "%d " "%d " "%d " "%d " "%d " "%d"
 };
 
-struct mk_channel_s {
-  char path[1024];
-  int fd;
-
-  uint8_t buf[64], r, w; /* read ring buffer */
-
-  bool start;
-  bool escape;
-  uint8_t msg[64], len; /* last message */
-};
-
 enum rc_device {
   RC_NONE,
   RC_MKBL,
@@ -79,9 +68,23 @@ enum rc_device {
   RC_TEENSY
 };
 
+struct mk_channel_s {
+  enum rc_device device; /* hw details */
+  bool imu, mag, motor;
+  uint16_t minid, maxid;
+  char path[1024];
+
+  int fd;
+  uint8_t buf[64], r, w; /* read ring buffer */
+
+  bool start;
+  bool escape;
+  uint8_t msg[64], len; /* last message */
+};
+
 struct rotorcraft_conn_s {
-  struct mk_channel_s chan;
-  enum rc_device device;
+  struct mk_channel_s *chan;
+  uint32_t n;
 };
 
 static inline genom_event
@@ -102,7 +105,7 @@ mk_e_sys_error(const char *s, genom_context self)
 }
 
 int	mk_open_tty(const char *device, speed_t baud);
-int	mk_wait_msg(const struct mk_channel_s *channel);
+int	mk_wait_msg(const rotorcraft_conn_s *conn);
 int	mk_recv_msg(struct mk_channel_s *chan, bool block);
 int	mk_send_msg(const struct mk_channel_s *chan, const char *fmt, ...);
 

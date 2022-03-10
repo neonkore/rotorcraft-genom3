@@ -43,7 +43,7 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
                    rotorcraft_ids_sensor_time_s *sensor_time,
                    const genom_context self)
 {
-  int i;
+  uint32_t p, i;
 
   if (rate->imu < 0. || rate->imu > 2000. ||
       rate->mag < 0. || rate->mag > 2000. ||
@@ -60,18 +60,24 @@ mk_set_sensor_rate(const rotorcraft_ids_sensor_time_s_rate_s *rate,
     }
   }
 
-  /* reconfigure existing connection */
-  if (conn && conn->chan.fd >= 0) {
-    uint32_t p;
+  /* reconfigure existing connections */
+  for(i = 0; i < conn->n; i++) {
+    if (conn->chan[i].fd < 0) continue;
 
     p = rate->battery > 0. ? 1000000/rate->battery : 0;
-    mk_send_msg(&conn->chan, "b%4", p);
-    p = rate->motor > 0. ? 1000000/rate->motor : 0;
-    mk_send_msg(&conn->chan, "m%4", p);
-    p = rate->imu > 0. ? 1000000/rate->imu : 0;
-    mk_send_msg(&conn->chan, "i%4", p);
-    p = rate->mag > 0. ? 1000000/rate->mag : 0;
-    mk_send_msg(&conn->chan, "c%4", p);
+    mk_send_msg(&conn->chan[i], "b%4", p);
+    if (conn->chan[i].motor) {
+      p = rate->motor > 0. ? 1000000/rate->motor : 0;
+      mk_send_msg(&conn->chan[i], "m%4", p);
+    }
+    if (conn->chan[i].imu) {
+      p = rate->imu > 0. ? 1000000/rate->imu : 0;
+      mk_send_msg(&conn->chan[i], "i%4", p);
+    }
+    if (conn->chan[i].mag) {
+      p = rate->mag > 0. ? 1000000/rate->mag : 0;
+      mk_send_msg(&conn->chan[i], "c%4", p);
+    }
   }
 
   /* reconfigure filters */
@@ -266,6 +272,7 @@ mk_disable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
                  const genom_context self)
 {
   struct timeval tv;
+  uint32_t i;
 
   if (motor < 1 || motor > or_rotorcraft_max_rotors)
     return rotorcraft_e_range(self);
@@ -278,7 +285,12 @@ mk_disable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
     .energy_level = nan("")
   };
 
-  if (conn) mk_send_msg(&conn->chan, "x%1", (uint8_t){motor});
+  /* also stop motor */
+  for(i = 0; i < conn->n; i++)
+    if (motor >= conn->chan[i].minid && motor <= conn->chan[i].maxid) {
+      mk_send_msg(&conn->chan[i], "x%1", (uint8_t){motor});
+      break;
+    }
 
   return genom_ok;
 }
@@ -296,6 +308,7 @@ mk_enable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
                 const genom_context self)
 {
   struct timeval tv;
+  uint32_t i, m;
 
   if (motor < 1 || motor > or_rotorcraft_max_rotors)
     return rotorcraft_e_range(self);
@@ -306,15 +319,17 @@ mk_enable_motor(uint16_t motor, const rotorcraft_conn_s *conn,
     .emerg = false, .spinning = false, .starting = false, .disabled = false
   };
 
-  if (conn) {
-    size_t i;
-    for(i = 0; i < or_rotorcraft_max_rotors; i++) {
-      if (state[i].disabled) continue;
-      if (!state[i].spinning) continue;
+  /* also restart motor if spinning */
+  for(m = 0; m < or_rotorcraft_max_rotors; m++) {
+    if (state[m].disabled) continue;
+    if (!state[m].spinning) continue;
 
-      mk_send_msg(&conn->chan, "g%1", (uint8_t){motor});
-      break;
-    }
+    for(i = 0; i < conn->n; i++)
+      if (motor >= conn->chan[i].minid && motor <= conn->chan[i].maxid) {
+        mk_send_msg(&conn->chan[i], "g%1", (uint8_t){motor});
+        break;
+      }
+    break;
   }
 
   return genom_ok;
@@ -333,22 +348,27 @@ mk_set_pid(const rotorcraft_conn_s *conn, uint16_t motor, double Kp,
            double Ki, double Kd, double f, const genom_context self)
 {
   static const uint16_t scale = 10000;
+  uint32_t i;
 
   uint16_t sKp = Kp * scale;
   uint16_t sKi = Ki * scale;
   uint16_t sKd = Kd * scale;
   uint16_t sf = f * scale;
 
-  switch (conn->device) {
-    case RC_TEENSY:
-      mk_send_msg(
-        &conn->chan, "%%%1%2%2%2%2", (uint8_t){motor}, sKp, sKi, sKd, sf);
-      break;
+  for(i = 0; i < conn->n; i++) {
+    if (motor < conn->chan[i].minid || motor > conn->chan[i].maxid) continue;
 
-    default: {
-      rotorcraft_e_baddev_detail d;
-      snprintf(d.dev, sizeof(d.dev), "unspported hardware");
-      return rotorcraft_e_baddev(&d, self);
+    switch (conn->chan[i].device) {
+      case RC_TEENSY:
+        mk_send_msg(
+          &conn->chan[i], "%%%1%2%2%2%2", (uint8_t){motor}, sKp, sKi, sKd, sf);
+        break;
+
+      default: {
+        rotorcraft_e_baddev_detail d;
+        snprintf(d.dev, sizeof(d.dev), "unspported hardware");
+        return rotorcraft_e_baddev(&d, self);
+      }
     }
   }
 
@@ -370,7 +390,7 @@ mk_set_velocity(const rotorcraft_conn_s *conn,
                 const genom_context self)
 {
   int16_t p[or_rotorcraft_max_rotors];
-  size_t i, l;
+  uint32_t i, l, n;
   (void)self;
 
   l = desired->_length;
@@ -387,7 +407,16 @@ mk_set_velocity(const rotorcraft_conn_s *conn,
   }
 
   /* send */
-  mk_send_msg(&conn->chan, "w%@", p, l);
+  for(i = 0; i < conn->n; i++) {
+    if (l < conn->chan[i].minid) continue;
+
+    if (l <= conn->chan[i].maxid)
+      n = l - conn->chan[i].minid + 1;
+    else
+      n = conn->chan[i].maxid - conn->chan[i].minid + 1;
+    mk_send_msg(&conn->chan[i], "w%@", p + conn->chan[i].minid - 1, n);
+  }
+
   return genom_ok;
 }
 
@@ -406,7 +435,7 @@ mk_set_throttle(const rotorcraft_conn_s *conn,
                 const genom_context self)
 {
   int16_t p[or_rotorcraft_max_rotors];
-  size_t i, l;
+  uint32_t i, l, n;
   (void)self;
 
   l = desired->_length;
@@ -423,7 +452,16 @@ mk_set_throttle(const rotorcraft_conn_s *conn,
   }
 
   /* send */
-  mk_send_msg(&conn->chan, "q%@", p, l);
+  for(i = 0; i < conn->n; i++) {
+    if (l < conn->chan[i].minid) continue;
+
+    if (l <= conn->chan[i].maxid)
+      n = l - conn->chan[i].minid + 1;
+    else
+      n = conn->chan[i].maxid - conn->chan[i].minid + 1;
+    mk_send_msg(&conn->chan[i], "q%@", p + conn->chan[i].minid - 1, n);
+  }
+
   return genom_ok;
 }
 

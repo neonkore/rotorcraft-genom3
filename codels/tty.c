@@ -266,23 +266,27 @@ done:
 /* --- mk_wait_msg --------------------------------------------------------- */
 
 int
-mk_wait_msg(const struct mk_channel_s *channel)
+mk_wait_msg(const rotorcraft_conn_s *conn)
 {
-  struct pollfd pfd;
+  struct pollfd pfd[conn->n];
+  uint32_t i;
   int s;
 
-  pfd.fd = channel->fd;
-  pfd.events = POLLIN;
-
-  s = poll(&pfd, 1, 500/*ms*/);
-
-  if (pfd.revents & POLLHUP) {
-    close(pfd.fd);
-
-    /* cheating with const. Oh well... */
-    ((struct mk_channel_s *)channel)->fd = -1;
-    warnx("disconnected from %s", channel->path);
+  for(i = 0; i < conn->n; i++) {
+    pfd[i].fd = conn->chan[i].fd;
+    pfd[i].events = POLLIN;
   }
+
+  s = poll(pfd, conn->n, 500/*ms*/);
+
+  for(i = 0; i < conn->n; i++)
+    if (pfd[i].revents & POLLHUP) {
+      close(pfd[i].fd);
+
+      /* cheating with const. Oh well... */
+      ((struct mk_channel_s *)&conn->chan[i])->fd = -1;
+      warnx("disconnected from %s", conn->chan[i].path);
+    }
 
   return s;
 }

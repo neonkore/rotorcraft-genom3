@@ -262,7 +262,7 @@ component rotorcraft {
   };
 
   task comm {
-    codel<start> mk_comm_start(out conn)
+    codel<start> mk_comm_start()
       yield poll;
 
     async codel<poll> mk_comm_poll(in conn)

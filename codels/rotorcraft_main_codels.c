@@ -52,8 +52,12 @@ mk_main_init(rotorcraft_ids *ids, const rotorcraft_imu *imu,
     .malpha = { 1., 1., 1. }
   };
 
-  e = mk_set_sensor_rate(
-    &ids->sensor_time.rate, NULL, &ids->imu_filter, &ids->sensor_time, self);
+  ids->conn = malloc(sizeof(*ids->conn));
+  if (!ids->conn) return mk_e_sys_error(NULL, self);
+  *ids->conn = (rotorcraft_conn_s){ .chan = NULL, .n = 0 };
+
+  e = mk_set_sensor_rate(&ids->sensor_time.rate,
+                         ids->conn, &ids->imu_filter, &ids->sensor_time, self);
   if (e) return e;
 
   ids->battery.min = 14.0;
@@ -172,13 +176,14 @@ mk_main_perm(const rotorcraft_conn_s *conn,
   gettimeofday(&tv, NULL);
 
   /* battery level */
-  if (conn && conn->chan.fd >= 0) {
-    if (battery->level > 0. && battery->level < battery->min) {
-      static int cnt;
+  if (battery->level > 0. && battery->level < battery->min) {
+    static int cnt;
+    uint32_t i;
 
-      if (!cnt) mk_send_msg(&conn->chan, "~%2", 440);
-      cnt = (cnt + 1) % 500;
-    }
+    for(i = 0; i < conn->n; i++)
+      if (!cnt) mk_send_msg(&conn->chan[i], "~%2", 440);
+
+    cnt = (cnt + 1) % 500;
   }
 
   /* imu covariance data */
@@ -729,6 +734,7 @@ mk_start_start(const rotorcraft_conn_s *conn,
                const genom_context self)
 {
   size_t i;
+  uint32_t m;
 
   if (!conn) return rotorcraft_e_connection(self);
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
@@ -740,7 +746,14 @@ mk_start_start(const rotorcraft_conn_s *conn,
   *state = 0;
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) continue;
-    mk_send_msg(&conn->chan, "g%1", (uint8_t){i+1});
+
+    for(m = 0; m < conn->n; m++) {
+      if (i + 1 < conn->chan[m].minid) continue;
+      if (i + 1 > conn->chan[m].maxid) continue;
+
+      mk_send_msg(&conn->chan[m], "g%1", (uint8_t){i+1});
+      break;
+    }
 
     /* wait until motor have cleared any emergency flag */
     if (rotor_state[i].emerg) return rotorcraft_pause_start;
@@ -766,6 +779,7 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
 {
   rotorcraft_e_rotor_failure_detail e;
   rotorcraft_e_rotor_not_disabled_detail d;
+  uint32_t m;
   size_t i;
   bool complete;
 
@@ -774,7 +788,9 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (rotor_state[i].disabled) {
       if (rotor_state[i].starting || rotor_state[i].spinning) {
-        mk_send_msg(&conn->chan, "x");
+        for(m = 0; m < conn->n; m++)
+          mk_send_msg(&conn->chan[m], "x");
+
         d.id = 1 + i;
         return rotorcraft_e_rotor_not_disabled(&d, self);
       }
@@ -787,21 +803,30 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
 
     if ((!rotor_state[i].starting && (*state & (1 << i))) ||
         rotor_state[i].emerg) {
-      mk_send_msg(&conn->chan, "x");
+      for(m = 0; m < conn->n; m++)
+        mk_send_msg(&conn->chan[m], "x");
+
       e.id = 1 + i;
       return rotorcraft_e_rotor_failure(&e, self);
     }
 
     /* resend startup message every 100 periods */
     if (!rotor_state[i].starting && *timeout % 100 == 0)
-      mk_send_msg(&conn->chan, "g%1", (uint8_t){i+1});
+      for(m = 0; m < conn->n; m++) {
+        if (i + 1 < conn->chan[m].minid) continue;
+        if (i + 1 > conn->chan[m].maxid) continue;
+
+        mk_send_msg(&conn->chan[m], "g%1", (uint8_t){i+1});
+        break;
+      }
 
     complete = false;
   }
 
   if (!complete) {
     if (!*timeout) {
-      mk_send_msg(&conn->chan, "x");
+      for(m = 0; m < conn->n; m++)
+        mk_send_msg(&conn->chan[m], "x");
       errno = EAGAIN;
       return mk_e_sys_error("start", self);
     }
@@ -812,7 +837,8 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
   if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
       sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
     if (!*timeout) {
-      mk_send_msg(&conn->chan, "x");
+      for(m = 0; m < conn->n; m++)
+        mk_send_msg(&conn->chan[m], "x");
       return rotorcraft_e_rate(self);
     }
     return rotorcraft_pause_monitor;
@@ -977,12 +1003,14 @@ genom_event
 mk_servo_stop(const rotorcraft_conn_s *conn, const genom_context self)
 {
   uint16_t p[or_rotorcraft_max_rotors];
-  int i;
+  uint32_t i;
   (void)self;
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) p[i] = 32767;
 
-  mk_send_msg(&conn->chan, "w%@", p, or_rotorcraft_max_rotors);
+  for(i = 0; i < conn->n; i++)
+    mk_send_msg(&conn->chan[i],
+                "w%@", p, conn->chan[i].maxid - conn->chan[i].minid + 1);
 
   return rotorcraft_ether;
 }
@@ -1000,10 +1028,11 @@ mk_stop(const rotorcraft_conn_s *conn,
         const or_rotorcraft_rotor_state state[8],
         const genom_context self)
 {
-  size_t i;
+  (void)self;
+  uint32_t i;
 
-  if (!conn) return rotorcraft_e_connection(self);
-  mk_send_msg(&conn->chan, "x");
+  for(i = 0; i < conn->n; i++)
+    mk_send_msg(&conn->chan[i], "x");
 
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
     if (state[i].disabled) continue;
