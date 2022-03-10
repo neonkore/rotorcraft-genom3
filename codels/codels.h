@@ -17,6 +17,8 @@
 #ifndef H_ROTORCRAFT_CODELS
 #define H_ROTORCRAFT_CODELS
 
+#include <sys/stat.h>
+
 #include <aio.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -72,9 +74,12 @@ struct mk_channel_s {
   enum rc_device device; /* hw details */
   bool imu, mag, motor;
   uint16_t minid, maxid;
-  char path[1024];
 
+  char path[1024];	/* i/o descriptor */
+  dev_t st_dev;
+  ino_t st_ino;
   int fd;
+
   uint8_t buf[64], r, w; /* read ring buffer */
 
   bool start;

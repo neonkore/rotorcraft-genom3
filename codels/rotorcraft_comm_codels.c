@@ -16,6 +16,7 @@
  */
 #include "acrotorcraft.h"
 
+#include <sys/stat.h>
 #include <sys/time.h>
 
 #include <assert.h>
@@ -610,6 +611,7 @@ mk_connect_chan(const char serial[64], uint32_t baud, struct mk_channel_s *chan,
                 const genom_context self)
 {
   rotorcraft_conn_s conn = { .chan = chan, .n = 1 };
+  struct stat sb;
   double rev;
   size_t c;
   int s;
@@ -618,6 +620,9 @@ mk_connect_chan(const char serial[64], uint32_t baud, struct mk_channel_s *chan,
   chan->fd = mk_open_tty(serial, baud);
   if (chan->fd < 0) return mk_e_sys_error(serial, self);
 
+  if (fstat(chan->fd, &sb)) return mk_e_sys_error(serial, self);
+  chan->st_dev = sb.st_dev;
+  chan->st_ino = sb.st_ino;
   chan->r = chan->w = 0;
   chan->start = chan->escape = false;
 
