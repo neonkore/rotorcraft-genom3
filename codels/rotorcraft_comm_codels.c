@@ -616,8 +616,9 @@ mk_pconnect_start(const char serial[64], uint32_t baud, bool imu,
       if (!(*conn)->chan[i].motor) continue;
       if ((*conn)->chan[i].maxid < minid) continue;
 
-      if ((*conn)->chan[i].minid >= minid && (*conn)->chan[i].minid <= maxid) {
-        maxid = (*conn)->chan[i].minid - 1;
+      if ((*conn)->chan[i].minid >= minid) {
+        if ((*conn)->chan[i].minid <= maxid)
+          maxid = (*conn)->chan[i].minid - 1;
         continue;
       }
 
