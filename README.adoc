@@ -888,6 +888,7 @@ a|.Throws
  ** `unsigned short` `id`
 
  * `exception ::rotorcraft::e_rate`
+ ** `string<8>` `what`
 
  * `exception ::rotorcraft::e_rotor_not_disabled`
  ** `unsigned short` `id`
@@ -916,6 +917,7 @@ a|.Throws
  ** `unsigned short` `id`
 
  * `exception ::rotorcraft::e_rate`
+ ** `string<8>` `what`
 
  * `exception ::rotorcraft::e_input`
 

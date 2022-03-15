@@ -35,7 +35,8 @@ component rotorcraft {
   exception e_baddev { string<256> dev; };
   exception e_rotor_failure { unsigned short id; };
   exception e_rotor_not_disabled { unsigned short id; };
-  exception e_started, e_connection, e_rate, e_range, e_input;
+  exception e_started, e_connection, e_range, e_input;
+  exception e_rate { string<8> what; };
 
   native conn_s;
   native log_s;

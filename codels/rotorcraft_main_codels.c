@@ -779,6 +779,7 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
 {
   rotorcraft_e_rotor_failure_detail e;
   rotorcraft_e_rotor_not_disabled_detail d;
+  rotorcraft_e_rate_detail erate;
   uint32_t m;
   size_t i;
   bool complete;
@@ -834,15 +835,19 @@ mk_start_monitor(const rotorcraft_conn_s *conn,
   }
 
   /* check sensor rate */
-  if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
-      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
+#define rate_less80p(dev)                                               \
+  (erate = (rotorcraft_e_rate_detail){ #dev },                          \
+   (sensor_time->measured_rate.dev < 0.8 * sensor_time->rate.dev))
+
+  if (rate_less80p(imu) || rate_less80p(mag) || rate_less80p(motor)) {
     if (!*timeout) {
       for(m = 0; m < conn->n; m++)
         mk_send_msg(&conn->chan[m], "x");
-      return rotorcraft_e_rate(self);
+      return rotorcraft_e_rate(&erate, self);
     }
     return rotorcraft_pause_monitor;
   }
+#undef rate_less80p
 
   return rotorcraft_ether;
 }
@@ -903,6 +908,7 @@ mk_servo_main(const rotorcraft_conn_s *conn,
               const genom_context self)
 {
   or_rotorcraft_input *input_data;
+  rotorcraft_e_rate_detail erate;
   struct timeval tv;
   genom_event e;
   size_t i;
@@ -930,9 +936,11 @@ mk_servo_main(const rotorcraft_conn_s *conn,
   }
 
   /* check sensor rate */
-  if (sensor_time->measured_rate.imu < 0.8 * sensor_time->rate.imu ||
-      sensor_time->measured_rate.motor < 0.8 * sensor_time->rate.motor) {
+#define rate_less80p(dev)                                               \
+  (erate = (rotorcraft_e_rate_detail){ #dev },                          \
+   (sensor_time->measured_rate.dev < 0.8 * sensor_time->rate.dev))
 
+  if (rate_less80p(imu) || rate_less80p(mag) || rate_less80p(motor)) {
     if (*scale >= 1.) warnx("low sensor rate, scaling input down");
 
     *scale -= 2e-3 * rotorcraft_control_period_ms / servo->ramp;
@@ -940,9 +948,10 @@ mk_servo_main(const rotorcraft_conn_s *conn,
       warnx("stopped because of low sensor rate");
       mk_stop(conn, rotor_data->state, self);
       *scale = 0.;
-      return rotorcraft_e_rate(self);
+      return rotorcraft_e_rate(&erate, self);
     }
   }
+#undef rate_less80p
 
   /* check rotors status */
   for(i = 0; i < or_rotorcraft_max_rotors; i++) {
